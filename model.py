@@ -1,9 +1,12 @@
 ### Acknowledgement 
 """
-The general code base including the model is edited from the code of CoRL 2020 Relational Learning for Skill Preconditions.
-Thanks for Mohit Sharma for sharing this code base. 
+The general code base including the model is edited from the code of CoRL 2022 Planning for Multi Object Manipulation with Graph Neural Network Relational Classifiers
+Which was edited from the CoRL 2020 Relational Learning for Skill Preconditions.
+Thanks for Mohit Sharma for sharing this code base with Yixuan Huang,
+and thanks to Yixuan Huang for sharing this code base with me.
+
 Utility function for PointConv from : https://github.com/DylanWusee/pointconv_pytorch/blob/master/utils/pointconv_util.py by Wenxuan Wu from OSU.
-We put the licenses about these two softwares in the liscense directory.
+Licenses about these two softwares in the liscense directory.
 """
 
 import numpy as np
@@ -511,9 +514,8 @@ def create_graph(num_nodes, node_inp_size, node_pose, edge_size, edge_feature, a
     return data
 
 
-def main():
-     
-    ## the initial setup for the input graph, latent graph and output graph. 
+## the initial setup for the input graph, latent graph and output graph. 
+def main(): 
 
     node_emb_size, edge_emb_size = 128, 128
 
@@ -574,35 +576,37 @@ def main():
 
     num_nodes = 3
 
-    input_pointcloud = torch.rand(num_nodes,3,128) ## initial point cloud
+    ## initial point cloud
+    input_pointcloud = torch.rand(num_nodes,3,128) 
 
-    img_emb_single = emb_model(input_pointcloud) ## get the pointconv features for each object which forms the node embedding for the input graph.
+    ## get the pointconv features for each object which forms the node embedding for the input graph.
+    img_emb_single = emb_model(input_pointcloud) 
 
-
+    ##Encodes object identity
     one_hot_encoding = np.zeros((num_nodes, max_objects))
-
-    action_torch = torch.rand((num_nodes,max_objects + 3)) ## the action for this step. 
-
     one_hot_encoding[0][0] = 1
     one_hot_encoding[1][1] = 1
     one_hot_encoding[2][2] = 1  ## one hot encoding 
-
     one_hot_encoding_tensor = torch.Tensor(one_hot_encoding)
     latent_one_hot_encoding = classif_model.one_hot_encoding_embed(one_hot_encoding_tensor)
-
     node_pose = torch.cat([img_emb_single, latent_one_hot_encoding], dim = 1)
 
+    ## the action for this step. 
+    action_torch = torch.rand((num_nodes,max_objects + 3)) 
+
+    #Create graph, stored as https://pytorch-geometric.readthedocs.io/en/latest/notes/introduction.html#data-handling-of-graphs
     data = create_graph(num_nodes, node_inp_size, node_pose, 0, None, action_torch)
 
+    #Creates a batch object, which is a set of regular graphs treated as a disconnected graph.
     batch = Batch.from_data_list([data])
 
+    #Returns a dict of presumably the set of predicted latent space nodes and edges
+    #and the set of predicted latent space nodes and edges given an action.
     outs = classif_model(batch.x, batch.edge_index, batch.edge_attr, batch.batch, batch.action)
     
     
     data_1_decoder = create_graph(num_nodes, node_emb_size, outs['pred'], edge_emb_size, outs['pred_edge'], action_torch)
-    
     batch_decoder = Batch.from_data_list([data_1_decoder])
-    
     outs_decoder = classif_model_decoder(batch_decoder.x, batch_decoder.edge_index, batch_decoder.edge_attr, batch_decoder.batch, batch_decoder.action)
 
     data_2_decoder_edge = create_graph(num_nodes, node_emb_size, outs['pred_embedding'], edge_emb_size, outs['pred_edge_embed'], action_torch)
