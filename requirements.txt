@@ -1,0 +1,14 @@
+numpy
+opencv-python
+h5py
+torch
+torchvision
+tqdm
+scipy
+matplotlib
+tensorboardX
+scikit-learn
+ipdb
+open3d
+chainer
+dgl
