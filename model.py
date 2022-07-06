@@ -616,7 +616,7 @@ def main():
     print(outs_decoder['pred_sigmoid'][:].shape)  ## the predicted relations for current step
     print(outs_decoder_2_edge['pred_sigmoid'][:].shape) ## the predicted relations for the next step. 
     print(outs['pred_embedding'].shape)  ## the current latent graph node embedding
-    print(outs['pred_edge_embed'].shape) ## the current latne graph edge embedding
+    print(outs['pred_edge_embed'].shape) ## the current latent graph edge embedding
 
 
 
