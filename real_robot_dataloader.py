@@ -1,3 +1,6 @@
+"""
+This file is different from dataloader/real_robot_dataloader.py but I'm not sure exaclty how. 
+"""
 import numpy as np
 
 import csv
