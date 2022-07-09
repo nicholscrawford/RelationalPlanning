@@ -704,17 +704,7 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
                 return {
                 'emb_model': self.emb_model.state_dict(),
                 'classif_model': self.classif_model.state_dict(),
-                'classif_model_decoder': self.classif_model_decoder.state_dict(),
-                'spatial_classifier_contrasive': self.spatial_classifier_contrasive.state_dict(),
-                'spatial_classifier_horizon': self.spatial_classifier_horizon.state_dict(),
-                'spatial_classifier_left': self.spatial_classifier_left.state_dict(),
-                'spatial_classifier_right': self.spatial_classifier_right.state_dict(),
-                'spatial_classifier_vertical': self.spatial_classifier_vertical.state_dict(),
-                'spatial_classifier_front': self.spatial_classifier_front.state_dict(),
-                'spatial_classifier_behind': self.spatial_classifier_behind.state_dict(),
-                'spatial_classifier_stack': self.spatial_classifier_stack.state_dict(),
-                'spatial_classifier_top': self.spatial_classifier_top.state_dict(),
-                'spatial_classifier_below': self.spatial_classifier_below.state_dict(),
+                'classif_model_decoder': self.classif_model_decoder.state_dict()
             }
         else:
             if self.pointconv_baselines:
@@ -722,31 +712,14 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
                     'pointconv_sigmoid_relations':self.pointconv_sigmoid_relations.state_dict(),
                     'emb_model': self.emb_model.state_dict(),
                     'classif_model': self.classif_model.state_dict(),
-                    'classif_model_decoder': self.classif_model_decoder.state_dict(),
-                    'spatial_classifier_horizon': self.spatial_classifier_horizon.state_dict(),
-                    'spatial_classifier_left': self.spatial_classifier_left.state_dict(),
-                    'spatial_classifier_right': self.spatial_classifier_right.state_dict(),
-                    'spatial_classifier_vertical': self.spatial_classifier_vertical.state_dict(),
-                    'spatial_classifier_front': self.spatial_classifier_front.state_dict(),
-                    'spatial_classifier_behind': self.spatial_classifier_behind.state_dict(),
-                    'spatial_classifier_stack': self.spatial_classifier_stack.state_dict(),
-                    'spatial_classifier_top': self.spatial_classifier_top.state_dict(),
-                    'spatial_classifier_below': self.spatial_classifier_below.state_dict(),
+                    'classif_model_decoder': self.classif_model_decoder.state_dict()
                 }
             else:
                 return {
                     'emb_model': self.emb_model.state_dict(),
                     'classif_model': self.classif_model.state_dict(),
-                    'classif_model_decoder': self.classif_model_decoder.state_dict(),
-                    'spatial_classifier_horizon': self.spatial_classifier_horizon.state_dict(),
-                    'spatial_classifier_left': self.spatial_classifier_left.state_dict(),
-                    'spatial_classifier_right': self.spatial_classifier_right.state_dict(),
-                    'spatial_classifier_vertical': self.spatial_classifier_vertical.state_dict(),
-                    'spatial_classifier_front': self.spatial_classifier_front.state_dict(),
-                    'spatial_classifier_behind': self.spatial_classifier_behind.state_dict(),
-                    'spatial_classifier_stack': self.spatial_classifier_stack.state_dict(),
-                    'spatial_classifier_top': self.spatial_classifier_top.state_dict(),
-                    'spatial_classifier_below': self.spatial_classifier_below.state_dict(),
+                    'classif_model_decoder': self.classif_model_decoder.state_dict()
+                    
                 }
 
     def set_model_device(self, device=torch.device("cpu")):
