@@ -10,12 +10,16 @@ We put the licenses about these two softwares in the liscense directory.
 
 export PYTHONPATH= YOUR DIRECTORY + /code/relational_precond
 
-pip install virtualenv
-virtualenv ENV_PATH + ENV_NAME --python=python3
-
 pip install -r requirements.txt
 
 https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html
+
+
+### Data Gathering
+
+Using the push_objects task.
+
+It seems like --log-only-success is useful. 
 
 
 ### If you only want to learn the basic ideas or our RD-GNN model, refer to /code/relational_precond/model.py

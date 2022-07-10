@@ -23,7 +23,7 @@
                 "PYTHONPATH": "${env:PYTHONPATH}:${workspaceFolder}/relational_precond"
 
             },
-            "args": ["--result_dir", "gym_data", "--train_dir", "gym_data", "--test_dir", "gym_data", "--train_type", "all_object_pairs_gnn_new", "--use_backbone_for_emb", "0", "--z_dim", "7", "--batch_size", "1", "--num_epochs", "50000", "--save_freq_iters", "1001", "--log_freq_iters", "5", "--print_freq_iters", "1", "--test_freq_iters", "50", "--lr", "0.0003", "--emb_lr", "0.0001", "--save_full_3d", "1", "--weight_precond", "1.0", "--loss_type", "classif", "--classif_num_classes", "2", "--cuda", "1", "--start_id", "0", "--max_size", "2", "--start_test_id", "0", "--test_max_size", "2", "--max_objects", "8", "--use_multiple_train_dataset", "False" ],
+            "args": ["--result_dir", "/home/nichols/code/yixuan_code/code/submitted_code/gym_data/push_blocks_results", "--train_dir", "/home/nichols/code/yixuan_code/code/submitted_code/gym_data/push_blocks_data", "--test_dir", "/home/nichols/code/yixuan_code/code/submitted_code/gym_data/push_blocks_data", "--train_type", "all_object_pairs_gnn_new", "--use_backbone_for_emb", "0", "--z_dim", "7", "--batch_size", "1", "--num_epochs", "50000", "--save_freq_iters", "1001", "--log_freq_iters", "5", "--print_freq_iters", "1", "--test_freq_iters", "50", "--lr", "0.0003", "--emb_lr", "0.0001", "--save_full_3d", "1", "--weight_precond", "1.0", "--loss_type", "classif", "--classif_num_classes", "2", "--cuda", "1", "--start_id", "0", "--max_size", "2", "--start_test_id", "0", "--test_max_size", "2", "--max_objects", "8", "--use_multiple_train_dataset", "False" ],
             "name": "GymData Train",
             "type": "python",
             "request": "launch",
@@ -42,6 +42,19 @@
             "type": "python",
             "request": "launch",
             "program": "/home/nichols/code/yixuan_code/code/submitted_code/relational_precond/trainer/multi_object_precond/train_multi_object_precond_e2e.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+
+        {
+            "env": {
+                "PYTHONPATH": "${env:PYTHONPATH}:${workspaceFolder}/relational_precond"
+
+            },
+            "name": "Data Conversion",
+            "type": "python",
+            "request": "launch",
+            "program": "/home/nichols/code/yixuan_code/code/submitted_code/data_conversion.py",
             "console": "integratedTerminal",
             "justMyCode": true
         }
