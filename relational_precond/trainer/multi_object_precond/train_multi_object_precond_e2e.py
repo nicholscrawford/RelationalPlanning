@@ -752,12 +752,6 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
         if self.pointconv_baselines:
             self.pointconv_sigmoid_relations.load_state_dict(cp_models['pointconv_sigmoid_relations'])
 
-        # self.spatial_classifier_left.load_state_dict(cp_models['spatial_classifier_left'])
-        # self.spatial_classifier_right.load_state_dict(cp_models['spatial_classifier_right'])
-        # self.spatial_classifier_front.load_state_dict(cp_models['spatial_classifier_front'])
-        # self.spatial_classifier_behind.load_state_dict(cp_models['spatial_classifier_behind'])
-        
-
     def process_raw_batch_data_point_cloud(self, batch_data):
         '''Process raw batch data and collect relevant objects in a dict.'''
         proc_batch_dict = {
@@ -991,8 +985,6 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
 
         return x_tensor_dict
 
-    
-
     def generate_edge_embed(self, node_pose):
         node_pose_numpy = node_pose.cpu().numpy()[:,-3:]
         #right_prediction, left_prediction, front_prediction, behind_prediction
@@ -1020,7 +1012,6 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
                     device = self.config.get_device()
                     total_list.append(torch.Tensor(pred_list).to(device))
         return total_list
-
 
     def CE_loss(self, input_tensor, goal):
         goal_tensor = torch.stack([goal, 1 - goal], axis = 0).T
@@ -8461,10 +8452,7 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
         else:
             leap = 0
             planning_leap = 0
-        return batch_result_dict, leap, planning_leap
-
-
-        
+        return batch_result_dict, leap, planning_leap 
           
     def get_next_data_from_dataloader(self, dataloader, train):
         args = self.config.args
@@ -9323,6 +9311,7 @@ def main(args):
 
 
 if __name__ == '__main__':
+    #Review needed args
     parser = argparse.ArgumentParser(
         description='Train for precond classification directly from images.')
     add_common_args_to_parser(parser,
