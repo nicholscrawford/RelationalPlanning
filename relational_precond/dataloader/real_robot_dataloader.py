@@ -175,7 +175,7 @@ class RobotAllPairSceneObjectPointCloudVariablestack(object):
             select_obj_num_range = A[:total_objects]
             self.select_obj_num_range = select_obj_num_range
         block_string = 'block_'
-        for j in range(total_objects):
+        """for j in range(total_objects):
             #print(attrs['objects'][block_string + str(j+1)])
             #self.all_gt_pose_list.append(attrs['objects'][block_string + str(j+1)]['position'])
             if 'extents' in attrs['objects'][block_string + str(j+1)]: #self.pushing and not self.pick_place:
@@ -183,6 +183,7 @@ class RobotAllPairSceneObjectPointCloudVariablestack(object):
                 self.all_gt_extents_list.append(attrs['objects'][block_string + str(j+1)]['extents'])
             else:
                 self.all_gt_extents_list.append([attrs['objects'][block_string + str(j+1)]['x_extent'], attrs['objects'][block_string + str(j+1)]['y_extent'], attrs['objects'][block_string + str(j+1)]['z_extent']])
+        """
 
         # print(data['objects'])
         print('size', data['point_cloud_1'].shape[0])
@@ -1997,7 +1998,7 @@ class AllPairVoxelDataloaderPointCloud3stack(object):
                         all_pair_scene_object =  RobotAllPairSceneObjectPointCloudVariablestack(test_dir, self.scene_type, pick_place = self.pick_place, push = self.pushing, set_max = self.set_max, max_objects = max_objects ,train = self.train, updated_behavior_params = self.updated_behavior_params, evaluate_end_relations = self.evaluate_end_relations, this_one_hot_encoding = this_one_hot_encoding)
                 idx_to_data_dict[demo_idx]['path'] = test_dir
                 idx_to_data_dict[demo_idx]['scene_voxel_obj'] = all_pair_scene_object
-                demo_idx += 1           
+                demo_idx += 1
             self.test_idx_to_data_dict.update(idx_to_data_dict)
 
         print("Did create index for test data: {}".format(

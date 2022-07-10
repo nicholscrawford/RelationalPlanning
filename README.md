@@ -17,9 +17,9 @@ https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html
 
 ### Data Gathering
 
-Using the push_objects task.
+Current setup requires a 3 object task, with one action performed, like a push, or a pick, so that there's two time stamps. It seems to work best with a push task, where no objects fall from the table, so that they all remain visible. Part of my research will be redesigning to avoid this error. I've added a config where 3 boxes are stacked, and then one is pushed, and they all should remain on the table, and so visible. 
 
-It seems like --log-only-success is useful. 
+It seems like --log-only-success and --log_only_behavior_intervals are good to use, for saving only useful data. Otherwise these files are closer to a gigabyte of space each, which doesn't allow for large dataset collection very easily. 
 
 
 ### If you only want to learn the basic ideas or our RD-GNN model, refer to /code/relational_precond/model.py
