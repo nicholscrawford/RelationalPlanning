@@ -1729,11 +1729,11 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
                                         # print('node_pose', [node_pose_numpy[[0,-1]], node_pose_goal[[0,-1]]])
                                        
                                         
-                                        print(min_action)
+                                        print("min_action", min_action)
                                         #min_action_numpy
-                                        print(action_torch)
+                                        print("action_torch", action_torch)
                                         #print()
-                                        print(min_cost)
+                                        print("min_cost", min_cost)
                                         # if change_id_leap == 1:
                                         #     goal_loss = loss_func(torch.stack(current_relations[:]), torch.stack(goal_relations[:]))
                                         #     print(goal_loss)
@@ -1768,8 +1768,8 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
                                         if min_action_numpy[0][-2]*action_numpy[0][-2] < 0: #np.abs(min_action_numpy[0][3] - action_numpy[0][3]) >= 0.06 or np.abs(min_action_numpy[0][4] - action_numpy[0][4]) >= 0.06:
                                             success_num = 0
                                         
-                                    print(success_num)
-                                    print(success_num/total_num)                    
+                                    print("success_num", success_num)
+                                    print("success_num/total_num", success_num/total_num)                    
                                 elif self.all_classifier:
                                     success_num = 0
                                     total_num = 1
@@ -1963,7 +1963,7 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
                                                         
                                                         
                                                         
-                                                    print(outs_edge['pred_edge_classifier'])
+                                                    print("outs_edge['pred_edge_classifier']", outs_edge['pred_edge_classifier'])
                     
                                                     test_loss += self.CE_loss(outs_edge['pred_edge_classifier'][0], right_tensor_dict) + \
                                                             self.CE_loss(outs_edge['pred_edge_classifier'][1], left_tensor_dict) + \
@@ -2012,10 +2012,10 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
                                         
 
                                         
-                                        print(min_action)
-                                        print(action_torch)
+                                        print("min_action ", min_action)
+                                        print("action_torch ", action_torch)
                                         #print()
-                                        print(min_cost)
+                                        print("min_cost ", min_cost)
                                         # if change_id_leap == 1:
                                         #     goal_loss = loss_func(torch.stack(current_relations[:]), torch.stack(goal_relations[:]))
                                         #     print(goal_loss)
@@ -4618,8 +4618,6 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
                 [0., 1., 1., 0., 0., 0., 0.],   # 6-2
                 [0., 1., 1., 0., 0., 0., 0.],   # 6-3
                 [0., 1., 1., 0., 0., 0., 0.],   # 6-4
-                [0., 1., 1., 0., 0., 0., 0.],   # 6-5
-                [0., 0., 0., 0., 1., 0., 1.],   # 6-7
                 [0., 1., 1., 0., 0., 0., 0.],   # 7-1
                 [0., 1., 1., 0., 0., 0., 0.],   # 7-2
                 [0., 1., 1., 0., 0., 0., 0.],   # 7-3
@@ -9055,32 +9053,19 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
             sudo_success_rate = -1
         return batch_result_dict, total_success_planning_num/total_planning_num, sudo_success_rate
 
-def update_test_args_with_train_args(test_args, train_args):
-    #assert train_args.z_dim == test_args.z_dim
-    assert train_args.add_xy_channels == test_args.add_xy_channels
-
-
 def main(args):
+    
     dtype = torch.FloatTensor
     if args.cuda:
         dtype = torch.cuda.FloatTensor
 
-    # Load the args from previously saved checkpoint
-    if len(args.checkpoint_path) > 0:
-        config_pkl_path = os.path.join(args.result_dir, 'config.pkl')
-        with open(config_pkl_path, 'rb') as config_f:
-            old_args = pickle.load(config_f)
-            print(bcolors.c_red("Did load config: {}".format(config_pkl_path)))
-        # Now update the current args with the old args for the train model
-        update_test_args_with_train_args(args, old_args)
-
-    config = BaseVAEConfig(args, dtype=dtype)
-    create_log_dirs(config)
+    config = BaseVAEConfig(args, dtype=dtype) #This just contains the dtype, args, and separates out result_dir.
+    create_log_dirs(config) #Creates result dir structure if it doesn't exist.
 
     trainer = MultiObjectVoxelPrecondTrainerE2E(config)
 
-    get_planning_success_leap = config.args.get_planning_success_leap
-    test_end_relations_leap = config.args.test_end_relations
+    get_planning_success_leap = config.args.get_planning_success_leap #whether to use a sequence of planning success threshold #Not sure what this means.
+    test_end_relations_leap = config.args.test_end_relations #whether to use the test_end_relations #Also pretty vague
     if get_planning_success_leap:
         threshold_list = []
         for i in range(11):
@@ -9103,8 +9088,17 @@ def main(args):
     else:
         planning_prf = np.zeros((1,3))
     detection_prf = np.zeros((7,3))
+
+
+    #####################################################################################
+    # Entry points:
+    #####################################################################################
+
     find_best_checkpoint = False
+    """
     if find_best_checkpoint:
+        #Find_best_checkpoint True. For retraining? idk.
+
         all_execution_success_list = []
         
         #print('saved checkpoint path',args.checkpoint_path)
@@ -9123,40 +9117,51 @@ def main(args):
                                                     threshold = 0)
             all_execution_success_list.append(execution_success_list)
             print(all_execution_success_list)
-    elif len(args.checkpoint_path) > 0:
+    """
+    if len(args.checkpoint_path) > 0:
+        # Checkpoint path provided, so presumably for testing. #Note: Why is testing sent to the train_next with a parameter of 'train' = false. This seems silly.
         trainer.load_checkpoint(args.checkpoint_path)
         if test_end_relations_leap:
             if not get_planning_success_leap:
-                for i in range(1):
-                    result_dict, planning_success_rate, execution_success_list = trainer.train_next_end_relations(viz_images=True,
-                                                    data_index = i)
-                    print('result_dict', result_dict)
-                    print(result_dict['planning_pr'])
-                    print(result_dict['detection_pr'])
-                    planning_prf[0,0] = result_dict['planning_pr'][0][0] / (result_dict['planning_pr'][0][0] + result_dict['planning_pr'][0][1])
-                    planning_prf[0,1] = result_dict['planning_pr'][0][0] / (result_dict['planning_pr'][0][0] + result_dict['planning_pr'][0][3])
-                    planning_prf[0,2] = (2*planning_prf[0,0]*planning_prf[0,1])/(planning_prf[0,0] + planning_prf[0,1])
+                
+                # Test_end_relations_leap TRUE ; get_planning success_leap FALSE
+                ###TRAIN### 
+                result_dict, planning_success_rate, execution_success_list = trainer.train_next_end_relations(viz_images=True,
+                                                data_index = i)
 
-                    print('planning prf', planning_prf)
-                    for detection_i in range(detection_prf.shape[0]):
-                        detection_prf[detection_i][0] = result_dict['detection_pr'][detection_i][0] / (result_dict['detection_pr'][detection_i][0] + result_dict['detection_pr'][detection_i][1])
-                        detection_prf[detection_i][1] = result_dict['detection_pr'][detection_i][0] / (result_dict['detection_pr'][detection_i][0] + result_dict['detection_pr'][detection_i][3])
-                        detection_prf[detection_i][2] = (2*detection_prf[detection_i][0]*detection_prf[detection_i][1])/(detection_prf[detection_i][0] + detection_prf[detection_i][1])
-                    print('detection prf', detection_prf)
-                    result_dict_list.append(result_dict)
-                    success_planning_rate_list.append(result_dict['success_planning_num']/result_dict['total_num'])
-                    success_exe_rate_list.append(result_dict['success_exe_num']/result_dict['total_num'])
-                    success_pred_exe_rate_list.append(result_dict['success_pred_exe_num']/result_dict['total_num'])
-                    success_pred_rate_list.append(result_dict['success_pred_num']/result_dict['total_num'])
-                    pure_success_planning_rate_list.append(result_dict['success_planning_num']/(result_dict['total_num'] - result_dict['fail_mp_num']))
-                    pure_success_exe_rate_list.append(result_dict['success_exe_num']/((result_dict['total_num']) - result_dict['fail_mp_num'] - result_dict['point_cloud_not_complete']))
-                    pure_success_pred_exe_rate_list.append(result_dict['success_pred_exe_num']/((result_dict['total_num']) - result_dict['fail_mp_num'] - result_dict['point_cloud_not_complete']))
-                    pure_success_pred_rate_list.append(result_dict['success_pred_num']/((result_dict['total_num']) - result_dict['fail_mp_num']))
-                    fall_mp_list.append(result_dict['fail_mp_num']/result_dict['total_num'])
+                #PRINT AND COMPUTE SOME RESULTS                                
+                print('result_dict', result_dict)
+                print(result_dict['planning_pr'])
+                print(result_dict['detection_pr'])
+                planning_prf[0,0] = result_dict['planning_pr'][0][0] / (result_dict['planning_pr'][0][0] + result_dict['planning_pr'][0][1])
+                planning_prf[0,1] = result_dict['planning_pr'][0][0] / (result_dict['planning_pr'][0][0] + result_dict['planning_pr'][0][3])
+                planning_prf[0,2] = (2*planning_prf[0,0]*planning_prf[0,1])/(planning_prf[0,0] + planning_prf[0,1])
+
+                print('planning prf', planning_prf)
+                for detection_i in range(detection_prf.shape[0]):
+                    detection_prf[detection_i][0] = result_dict['detection_pr'][detection_i][0] / (result_dict['detection_pr'][detection_i][0] + result_dict['detection_pr'][detection_i][1])
+                    detection_prf[detection_i][1] = result_dict['detection_pr'][detection_i][0] / (result_dict['detection_pr'][detection_i][0] + result_dict['detection_pr'][detection_i][3])
+                    detection_prf[detection_i][2] = (2*detection_prf[detection_i][0]*detection_prf[detection_i][1])/(detection_prf[detection_i][0] + detection_prf[detection_i][1])
+                print('detection prf', detection_prf)
+                result_dict_list.append(result_dict)
+                success_planning_rate_list.append(result_dict['success_planning_num']/result_dict['total_num'])
+                success_exe_rate_list.append(result_dict['success_exe_num']/result_dict['total_num'])
+                success_pred_exe_rate_list.append(result_dict['success_pred_exe_num']/result_dict['total_num'])
+                success_pred_rate_list.append(result_dict['success_pred_num']/result_dict['total_num'])
+                pure_success_planning_rate_list.append(result_dict['success_planning_num']/(result_dict['total_num'] - result_dict['fail_mp_num']))
+                pure_success_exe_rate_list.append(result_dict['success_exe_num']/((result_dict['total_num']) - result_dict['fail_mp_num'] - result_dict['point_cloud_not_complete']))
+                pure_success_pred_exe_rate_list.append(result_dict['success_pred_exe_num']/((result_dict['total_num']) - result_dict['fail_mp_num'] - result_dict['point_cloud_not_complete']))
+                pure_success_pred_rate_list.append(result_dict['success_pred_num']/((result_dict['total_num']) - result_dict['fail_mp_num']))
+                fall_mp_list.append(result_dict['fail_mp_num']/result_dict['total_num'])
             else:
                 for i in range(len(threshold_list)):
+                    
+                    # Test_end_relations_leap TRUE ; get_planning_success_leap TRUE
+                    ##TRAIN## 
                     result_dict, planning_success_rate, execution_success_list = trainer.train_next_end_relations(viz_images=True,
                                                     data_index = i)
+                    
+                    # PRINT AND COMPUTE SOME RESULTS
                     print('result_dict', result_dict)
                     
                     result_dict_list.append(result_dict)
@@ -9169,19 +9174,29 @@ def main(args):
                     fall_mp_list.append(result_dict['fail_mp_num']/result_dict['total_num'])
         elif get_planning_success_leap:
             for i in range(len(threshold_list)):
+                
+                # Test_end_relations_leap FALSE ; get_planning_success_leap TRUE
+                ##TRAIN##
                 result_dict, planning_success_rate, execution_success_list = trainer.train_next(train=False,
                                             viz_images=False,
                                             save_embedding=True, 
                                             threshold = threshold_list[i])
+
+
                 planning_success_list.append(planning_success_rate)
                 sudo_execution_success_list.append(execution_success_list)
                 print('all planning success list', planning_success_list)
                 print('all sudo execution success list', sudo_execution_success_list)
         else:
+
+            # Test_end_relations_leap FALSE ; get_planning_success_leap FALSE
+            ##TRAIN##
             result_dict, planning_success_rate, execution_success_list = trainer.train_next(train=False,
                                                 viz_images=False,
                                                 save_embedding=True, 
                                                 threshold = 0)
+
+            # PRINT AND COMPUTE SOME RESULTS                              
             if config.args.evaluate_end_relations:
                 if config.args.using_sub_goal:
                     for relation_i in range(result_dict['planning_pr'].shape[0]):
@@ -9231,6 +9246,8 @@ def main(args):
                     pure_success_pred_exe_rate_list.append(result_dict['success_pred_exe_num']/((result_dict['total_num']) - result_dict['fail_mp_num'] - result_dict['point_cloud_not_complete']))
                     pure_success_pred_rate_list.append(result_dict['success_pred_num']/((result_dict['total_num']) - result_dict['fail_mp_num']))
                     fall_mp_list.append(result_dict['fail_mp_num']/result_dict['total_num'])
+        
+        #save and print more results
         test_result_dir = os.path.join(
             os.path.dirname(args.checkpoint_path), '{}_result_{}'.format(
                 args.cp_prefix, os.path.basename(args.checkpoint_path)[:-4]))
@@ -9266,6 +9283,8 @@ def main(args):
         # print('pure_success_pred_rate_list', pure_success_pred_rate_list)
         # print('fall_mp_list', fall_mp_list)
     else:
+        #Checkpoint path not provided
+
         config_pkl_path = os.path.join(args.result_dir, 'config.pkl')
         config_json_path = os.path.join(args.result_dir, 'config.json')
         with open(config_pkl_path, 'wb') as config_f:
