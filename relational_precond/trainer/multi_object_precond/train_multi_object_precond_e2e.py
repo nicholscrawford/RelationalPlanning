@@ -1043,21 +1043,16 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
                            save_preds=False,
                            save_emb=False, 
                            threshold = 0):
-        # print('enter')
-        # print('mlp', self.mlp)
+
         batch_result_dict = {}
         device = self.config.get_device()
         args = self.config.args
 
-        #print(x_tensor_dict)
         voxel_data = x_tensor_dict['batch_voxel']
         voxel_data_single = x_tensor_dict['batch_voxel_single']
 
-        # print(voxel_data_single.shape) ## (3,3,128)
-        # time.sleep(10)
         voxel_data_anchor = x_tensor_dict['batch_anchor_voxel']
 
-        
         voxel_data_other = x_tensor_dict['batch_other_voxel']
 
         
@@ -1077,74 +1072,41 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
 
         gt_pose_list = x_tensor_dict['batch_gt_pose_list']
         if not train:
-            #print(x_tensor_dict)
             if self.pushing and 'batch_gt_extents_range_list' in x_tensor_dict:
                 gt_extents_range_list = x_tensor_dict['batch_gt_extents_range_list']
             else:
                 gt_extents_range_list = torch.zeros((5,3)).to(device)
 
-            # print('gt_pose_list', gt_pose_list)
-            # print('gt_extents_range_list',gt_extents_range_list)
             self.gt_pose = x_tensor_dict['batch_gt_pose_list'].cpu().detach().numpy()
             if self.pushing and 'batch_gt_extents_range_list' in x_tensor_dict:
                 self.gt_extents_range = x_tensor_dict['batch_gt_extents_range_list'].cpu().detach().numpy()
             else:
                 self.gt_extents_range = np.zeros((5,3))
-
-        # print('gt_pose_list', self.gt_pose_list)
-        # print('gt_extents_range_list', self.gt_extents_range)
-
         
         action_fake = x_tensor_dict_next['batch_all_obj_pair_pos'] - x_tensor_dict['batch_all_obj_pair_pos']
-        # print(device)
-        
-        # print(action)
-        # print(voxel_data.shape)
-        #action = action.to(device)
+
         action = x_tensor_dict_next['batch_action']
 
         stacking = self.stacking
 
         self.num_nodes = x_tensor_dict['batch_num_objects'].cpu().numpy().astype(int)[0]
-        #print(self.num_nodes)
-        #time.sleep(10)
-        #print(action)
-        #print(x_tensor_dict)
         
         # Now join the img_emb into a list for each scene.
         if  'all_object_pairs' in args.train_type:
             # Get the embeddings
-            # if args.emb_lr <= 1e-6:
-            #     with torch.no_grad():
-            #         img_emb = self.emb_model(voxel_data)
-            # else:
-            #     img_emb = self.emb_model(voxel_data)
-            # print('single voxel_data shape', voxel_data_single.shape)
-            # print('voxel_data shape', voxel_data.shape)
-            # print('voxel_data_anchor shape', voxel_data_anchor.shape)
-            # print('voxel_data_other shape', voxel_data_other.shape)
+     
             img_emb_anchor = self.emb_model(voxel_data_anchor)
             img_emb_other = self.emb_model(voxel_data_other)
-            # print(img_emb_anchor.shape)
-            # print(img_emb_other.shape)
-            #print('voxel data single shape', voxel_data_single.shape)
+
             img_emb_single = self.emb_model(voxel_data_single)
-            #print('single voxel_data shape', img_emb_single.shape)
 
             img_emb_next_single = self.emb_model(voxel_data_next_single)
-            #print('single voxel_data shape', img_emb_next_single.shape)
             
             node_info_extra = torch.stack([img_emb_anchor[0], img_emb_anchor[2], img_emb_anchor[4]])
-            #print(node_info_extra.shape)
-            #node_info
+
             img_emb = torch.cat([
                 img_emb_anchor,
                 img_emb_other], dim=1)
-
-            # print(img_emb.shape)
-            # time.sleep(10)
-
-
             
             img_emb = img_emb.to(device)
             
@@ -1155,9 +1117,6 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
                 img_emb_anchor_next,
                 img_emb_other_next], dim=1)
 
-            # print('inp_emb shape', inp_emb.shape)
-            # print('inp_emb', inp_emb)
-
             img_emb_next = img_emb_next.to(device)
 
 
@@ -1165,8 +1124,6 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
             
             one_hot_encoding = torch.eye(self.num_nodes).float().to(device)
             
-            # print(one_hot_encoding)
-            # print(x_tensor_dict['batch_all_obj_pair_pos'][0])
             if self.enable_orientation:
                 node_pose = torch.cat((one_hot_encoding, x_tensor_dict['batch_all_obj_pair_pos'][0], x_tensor_dict['batch_all_obj_pair_orient'][0]), 1)
                 node_pose_goal = torch.cat((one_hot_encoding, x_tensor_dict_next['batch_all_obj_pair_pos'][0], x_tensor_dict_next['batch_all_obj_pair_orient'][0]), 1)
@@ -1178,27 +1135,17 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
                 node_pose = torch.cat((node_pose, node_info_extra), 1)
                 node_pose_goal = torch.cat((node_pose_goal, node_info_extra_next), 1)
 
-            #print('node pose', node_pose)
-            #print(action.shape)
-            #action_torch = torch.cat((action[:][0][0][:], action[:][0][0][:], action[:][0][0][:]), 0)
             action_list = []
             for _ in range(self.num_nodes):
                 action_list.append(action[0][0][:])
             action_torch = torch.stack(action_list)
-            # print(action[:][0][0][:])
-            # print(action[:][0][0][:].shape)
-            # print(action_torch)
-            # print(action_torch.shape)
-            # time.sleep(10)
-            #print(node_pose)
+
             self.debug_tools = False
             
             if self.debug_tools:
                 print('node pose', node_pose)
                 print('node pose goal', node_pose_goal)
-                print('scene_embed', scene_emb_list)
-                print('scene_embed_0', scene_emb_list_next[0])
-                print('diff embed', self.dynamics_loss(torch.stack(scene_emb_list[0]), torch.stack(scene_emb_list_next[0])))
+
             # print(generate_edge_embed_list)
 
             edge_feature = self.generate_edge_embed(node_pose)
@@ -1217,35 +1164,34 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
             # print('next relation difference', self.dynamics_loss(inp_emb_next,x_tensor_dict_next['batch_all_obj_pair_relation'][:, -4:-2]))
             # print('pred relations', torch.stack(scene_emb_list[0]))
             # print('ground_truth relations', x_tensor_dict['batch_all_obj_pair_relation'])
-            if self.use_point_cloud_embedding:
-                #print([select_obj_num_range.shape, self.classif_model.one_hot_encoding_embed])
-                select_obj_num_range = select_obj_num_range.cpu().numpy()[0]
-                #print(select_obj_num_range)
-                if self.set_max:
-                    one_hot_encoding = np.zeros((self.num_nodes, self.max_objects))
-                else:
-                    one_hot_encoding = np.zeros((self.num_nodes, self.num_nodes))
-                
-                for one_hot_i in range(len(select_obj_num_range)):
-                    one_hot_encoding[one_hot_i][(int)(select_obj_num_range[one_hot_i])] = 1
-                one_hot_encoding_tensor = torch.Tensor(one_hot_encoding).to(device)
-                latent_one_hot_encoding = self.classif_model.one_hot_encoding_embed(one_hot_encoding_tensor)
-                #print('latent_one_hot_encoding, img_emb_single', [latent_one_hot_encoding.shape, img_emb_single.shape])
-                node_pose = torch.cat([img_emb_single, latent_one_hot_encoding], dim = 1)
-                #print(node_pose.shape)
-                
-                select_obj_num_range_next = select_obj_num_range_next.cpu().numpy()[0]
-                #print(select_obj_num_range)
-                if self.set_max:
-                    one_hot_encoding_next = np.zeros((self.num_nodes, self.max_objects))
-                else:
-                    one_hot_encoding_next = np.zeros((self.num_nodes, self.num_nodes))
-                
-                for one_hot_i in range(len(select_obj_num_range_next)):
-                    one_hot_encoding_next[one_hot_i][(int)(select_obj_num_range_next[one_hot_i])] = 1
-                one_hot_encoding_next_tensor = torch.Tensor(one_hot_encoding_next).to(device)
-                latent_one_hot_encoding_next = self.classif_model.one_hot_encoding_embed(one_hot_encoding_next_tensor)
-                node_pose_goal = torch.cat([img_emb_next_single, latent_one_hot_encoding_next], dim = 1)
+            #print([select_obj_num_range.shape, self.classif_model.one_hot_encoding_embed])
+            select_obj_num_range = select_obj_num_range.cpu().numpy()[0]
+            #print(select_obj_num_range)
+            if self.set_max:
+                one_hot_encoding = np.zeros((self.num_nodes, self.max_objects))
+            else:
+                one_hot_encoding = np.zeros((self.num_nodes, self.num_nodes))
+            
+            for one_hot_i in range(len(select_obj_num_range)):
+                one_hot_encoding[one_hot_i][(int)(select_obj_num_range[one_hot_i])] = 1
+            one_hot_encoding_tensor = torch.Tensor(one_hot_encoding).to(device)
+            latent_one_hot_encoding = self.classif_model.one_hot_encoding_embed(one_hot_encoding_tensor)
+            #print('latent_one_hot_encoding, img_emb_single', [latent_one_hot_encoding.shape, img_emb_single.shape])
+            node_pose = torch.cat([img_emb_single, latent_one_hot_encoding], dim = 1)
+            #print(node_pose.shape)
+            
+            select_obj_num_range_next = select_obj_num_range_next.cpu().numpy()[0]
+            #print(select_obj_num_range)
+            if self.set_max:
+                one_hot_encoding_next = np.zeros((self.num_nodes, self.max_objects))
+            else:
+                one_hot_encoding_next = np.zeros((self.num_nodes, self.num_nodes))
+            
+            for one_hot_i in range(len(select_obj_num_range_next)):
+                one_hot_encoding_next[one_hot_i][(int)(select_obj_num_range_next[one_hot_i])] = 1
+            one_hot_encoding_next_tensor = torch.Tensor(one_hot_encoding_next).to(device)
+            latent_one_hot_encoding_next = self.classif_model.one_hot_encoding_embed(one_hot_encoding_next_tensor)
+            node_pose_goal = torch.cat([img_emb_next_single, latent_one_hot_encoding_next], dim = 1)
             #print('input shapa', node_pose.shape)
             
             if self.mlp:
@@ -1424,2180 +1370,327 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
         self.previous_threshold = threshold
         
         
-        
+        #Testing
         if not train:
-            if self.pushing and not self.pick_place:
-                if graph_latent:
-                    if True:
-                        if edge_classifier:
-                            if cem_planning:
-                                if self.all_gt_sigmoid:
-                                    success_num = 0
-                                    total_num = 1
-                                    planning_success_num = 0
-                                    planning_total_num = 0
-                                    planning_threshold = threshold
+            success_num = 0
+            total_num = 1
+            planning_success_num = 0
+            planning_threshold = threshold
 
-                                    for test_iter in range(total_num):
-                                        print('enter')
-                                        plannning_sequence = 1
-                                        sample_sequence = 1
-                                        num_nodes = self.num_nodes
+            for test_iter in range(total_num):
 
+                num_nodes = self.num_nodes
 
-                                        if self.mlp:
-                                            data_1 = self.create_graph(self.num_nodes, self.node_inp_size, node_pose, self.node_inp_size*2, img_emb, action_torch)
-                                            # data_next = self.create_graph(self.num_nodes, self.node_emb_size, node_pose_goal, self.node_inp_size*2, img_emb_next, action_torch)
-                                        else:
-                                            data_1 = self.create_graph(self.num_nodes, self.node_inp_size, node_pose, 0, None, action_torch)
-                                        batch = Batch.from_data_list([data_1]).to(device)
-                                        outs = self.classif_model(batch.x, batch.edge_index, batch.edge_attr, batch.batch, batch.action)
+                if self.mlp:
+                    data_1 = self.create_graph(self.num_nodes, self.node_inp_size, node_pose, self.node_inp_size*2, img_emb, action_torch)
+                    # data_next = self.create_graph(self.num_nodes, self.node_emb_size, node_pose_goal, self.node_inp_size*2, img_emb_next, action_torch)
+                else:
+                    data_1 = self.create_graph(self.num_nodes, self.node_inp_size, node_pose, 0, None, action_torch)
+                batch = Batch.from_data_list([data_1]).to(device)
+                outs = self.classif_model(batch.x, batch.edge_index, batch.edge_attr, batch.batch, batch.action)
 
 
 
-                                        data_1_decoder = self.create_graph(self.num_nodes, self.node_emb_size, outs['pred'], self.edge_emb_size, outs['pred_edge'], action_torch)                    
-                                        batch_decoder = Batch.from_data_list([data_1_decoder]).to(device)
-                                        outs_decoder = self.classif_model_decoder(batch_decoder.x, batch_decoder.edge_index, batch_decoder.edge_attr, batch_decoder.batch, batch_decoder.action)
+                data_1_decoder = self.create_graph(self.num_nodes, self.node_emb_size, outs['pred'], self.edge_emb_size, outs['pred_edge'], action_torch)                    
+                batch_decoder = Batch.from_data_list([data_1_decoder]).to(device)
+                outs_decoder = self.classif_model_decoder(batch_decoder.x, batch_decoder.edge_index, batch_decoder.edge_attr, batch_decoder.batch, batch_decoder.action)
 
-                                        print('current relations', outs_decoder['pred_sigmoid'][:])
-                                        if self.real_data:
-                                            #part to set goal relations manually
-                                            print('current relations', outs_decoder['pred_sigmoid'][:])
-                                            goal_relations = np.array([[0., 0., 0., 1., 0., 0., 0.],  # 1-2  # (1,0) for z as below as anchor, other
-                                            [0., 0., 0., 1., 0., 0., 0.],   # 1-3
-                                            [0., 0., 1., 0., 0., 0., 0.],   # 2-1
-                                            [0., 0., 0., 1., 0., 0., 0.],   # 2-3  need action as -y?   (0,1) as -y for based on the anchor, other, same for x
-                                            [0., 0., 1., 0., 0., 0., 0.],   # 3-1
-                                            [0., 0., 1., 0., 0., 0., 0.]])  # 3-2 # push object 2 minus direction correct 
+                print('current relations', outs_decoder['pred_sigmoid'][:])
+                if self.real_data:
+                    #part to set goal relations manually
+                    print('current relations', outs_decoder['pred_sigmoid'][:])
+                    goal_relations = np.array([[0., 0., 0., 1., 0., 0., 0.],  # 1-2  # (1,0) for z as below as anchor, other
+                    [0., 0., 0., 1., 0., 0., 0.],   # 1-3
+                    [0., 0., 1., 0., 0., 0., 0.],   # 2-1
+                    [0., 0., 0., 1., 0., 0., 0.],   # 2-3  need action as -y?   (0,1) as -y for based on the anchor, other, same for x
+                    [0., 0., 1., 0., 0., 0., 0.],   # 3-1
+                    [0., 0., 1., 0., 0., 0., 0.]])  # 3-2 # push object 2 minus direction correct 
 
-                                            # goal_relations = np.array([[0., 0., 1., 0., 0., 0.],  # 1-2  # (1,0) for z as below as anchor, other
-                                            # [0., 0., 1., 0., 0., 0.],   # 1-3
-                                            # [0., 0., 0., 1., 0., 0.],   # 2-1
-                                            # [0., 0., 1., 0., 0., 0.],   # 2-3  need action as -y?   (0,1) as -y for based on the anchor, other, same for x
-                                            # [0., 0., 0., 1., 0., 0.],   # 3-1
-                                            # [0., 0., 0., 1., 0., 0.]])  # 3-2 # push object 2 positive direction wrong 
+                    # goal_relations = np.array([[0., 0., 1., 0., 0., 0.],  # 1-2  # (1,0) for z as below as anchor, other
+                    # [0., 0., 1., 0., 0., 0.],   # 1-3
+                    # [0., 0., 0., 1., 0., 0.],   # 2-1
+                    # [0., 0., 1., 0., 0., 0.],   # 2-3  need action as -y?   (0,1) as -y for based on the anchor, other, same for x
+                    # [0., 0., 0., 1., 0., 0.],   # 3-1
+                    # [0., 0., 0., 1., 0., 0.]])  # 3-2 # push object 2 positive direction wrong 
 
-                                            # goal_relations = np.array([[0., 0., 0., 0., 1., 0.],  # 1-2  # (1,0) for z as below as anchor, other
-                                            # [0., 0., 1., 0., 0., 0.],   # 1-3
-                                            # [0., 0., 0., 0., 0., 1.],   # 2-1
-                                            # [0., 0., 1., 0., 0., 0.],   # 2-3  need action as -y?   (0,1) as -y for based on the anchor, other, same for x
-                                            # [0., 0., 0., 1., 0., 0.],   # 3-1
-                                            # [0., 0., 0., 1., 0., 0.]])  # 3-2 # push object 3 positive direction correct
+                    # goal_relations = np.array([[0., 0., 0., 0., 1., 0.],  # 1-2  # (1,0) for z as below as anchor, other
+                    # [0., 0., 1., 0., 0., 0.],   # 1-3
+                    # [0., 0., 0., 0., 0., 1.],   # 2-1
+                    # [0., 0., 1., 0., 0., 0.],   # 2-3  need action as -y?   (0,1) as -y for based on the anchor, other, same for x
+                    # [0., 0., 0., 1., 0., 0.],   # 3-1
+                    # [0., 0., 0., 1., 0., 0.]])  # 3-2 # push object 3 positive direction correct
 
-                                            # goal_relations = np.array([[0., 0., 0., 0., 1., 0.],  # 1-2  # (1,0) for z as below as anchor, other
-                                            # [0., 0., 0., 1., 0., 0.],   # 1-3
-                                            # [0., 0., 0., 0., 0., 1.],   # 2-1
-                                            # [0., 0., 0., 1., 0., 0.],   # 2-3  need action as -y?   (0,1) as -y for based on the anchor, other, same for x
-                                            # [0., 0., 1., 0., 0., 0.],   # 3-1
-                                            # [0., 0., 1., 0., 0., 0.]])  # 3-2 # push object 3 negative direction correct
+                    # goal_relations = np.array([[0., 0., 0., 0., 1., 0.],  # 1-2  # (1,0) for z as below as anchor, other
+                    # [0., 0., 0., 1., 0., 0.],   # 1-3
+                    # [0., 0., 0., 0., 0., 1.],   # 2-1
+                    # [0., 0., 0., 1., 0., 0.],   # 2-3  need action as -y?   (0,1) as -y for based on the anchor, other, same for x
+                    # [0., 0., 1., 0., 0., 0.],   # 3-1
+                    # [0., 0., 1., 0., 0., 0.]])  # 3-2 # push object 3 negative direction correct
 
-                                            # # action as push block 2  [0.6176837668646232, -0.12890155670030637, 0.9120449995994568]
-                                            # # [[0, 0, 0, 1, 0, 0], [1, 0, 0, 1, 0, 0], [0, 0, 1, 0, 0, 0], [1, 0, 0, 1, 0, 0], [0, 1, 1, 0, 0, 0], [0, 1, 1, 0, 0, 0]]
-                                            x_tensor_dict_next['batch_all_obj_pair_relation'] = torch.Tensor(goal_relations).to(device)
-                                            print(x_tensor_dict_next['batch_all_obj_pair_relation'])
-                                            #time.sleep(5)
-
-
-
-                                        # data = self.create_graph(self.num_nodes, self.node_inp_size, node_pose, self.edge_inp_size, torch.stack(scene_emb_list[0]), action_torch)
-                                        # data_next = self.create_graph(self.num_nodes, self.node_inp_size, node_pose_goal, self.edge_inp_size, x_tensor_dict_next['batch_all_obj_pair_relation'], action_torch)
-                                        # batch = Batch.from_data_list([data]).to(device)
-                                        # outs = self.classif_model(batch.x, batch.edge_index, batch.edge_attr, batch.batch, batch.action)
-                                        # batch2 = Batch.from_data_list([data_next]).to(device)
-                                        # outs_2 = self.classif_model(batch2.x, batch2.edge_index, batch2.edge_attr, batch2.batch, batch2.action)
-                                        
-                                        
-                                        min_cost = 1e5
-                                        loss_list = []
-                                        all_action_list = []
-                                        print('actual action', action)
-                                        for obj_mov in range(self.num_nodes):
-                                            print('mov obj', obj_mov)
-                                            action_selections = 500
-                                            action_mu = np.zeros((action_selections, 1, 2))
-                                            action_sigma = np.ones((action_selections, 1, 2))
-                                            for i_iter in range(5):
-                                                action_noise = np.zeros((action_selections, 1, 2))
-                                                action_noise[:,:,0] = (np.random.rand(action_selections, 1) - 0.5) * 0.1
-                                                action_noise[:,:,1] = (np.random.rand(action_selections, 1) - 0.5) * 0.6
-                                                #action_noise = (np.random.rand(action_selections, 1, 2) - 0.5) * 0.4 # change range to (-0.2, 0.2)
-                                                act = action_mu + action_noise*action_sigma
-                                                costs = []
-                                                for j in range(action_selections):
-                                                    action_numpy = np.zeros((num_nodes, 3))
-                                                    action_numpy[obj_mov][0] = act[j, 0, 0]
-                                                    action_numpy[obj_mov][1] = act[j, 0, 1]
-                                                    action_numpy[obj_mov][2] = 0 #np.random.uniform(-0.2,0.2)
-                                                    
-                                                    if self.set_max:
-                                                        action = np.zeros((num_nodes, self.max_objects + 3))
-                                                    else:
-                                                        action = np.zeros((num_nodes, num_nodes + 3))
-                                                    for i in range(action.shape[0]):
-                                                        action[i][obj_mov] = 1
-                                                        action[i][-3:] = action_numpy[obj_mov]
-                                                    
-                                                    sample_action = torch.Tensor(action).to(device)
-                                                    
-                                                    # action_1 = np.zeros((num_nodes, 3 + num_nodes))
-                                                    # for i in range(action_1.shape[0]):
-                                                    #     action_1[i][obj_mov] = 1
-                                                    #     action_1[i][3:] = action_numpy[obj_mov]
-                                                    # sample_action = torch.Tensor(action_1)
-                                                    #sample_action = (torch.rand((num_nodes, node_inp_size)) - 0.5)*20
-                                                    # if(_ == 0):
-                                                    #     sample_action = action
-                                                    this_sequence = []
-                                                    this_sequence.append(sample_action)
-                                                    loss_func = nn.MSELoss()
-                                                    test_loss = 0
-                                                    current_latent = outs['current_embed']
-                                                    egde_latent = outs['edge_embed']
-                                                    #print('prev_embed, edge_embed, action', [current_latent, egde_latent, sample_action])
-                                                    for seq in range(len(this_sequence)):
-                                                        #print([current_latent, this_sequence[seq]])
-                                                        if self.use_graph_dynamics:
-                                                            current_action = self.classif_model.action_emb(this_sequence[seq])
-                                                        else:
-                                                            current_action = self.classif_model.action_emb(this_sequence[seq])
-
-                                                        graph_node_action = torch.cat((current_latent, current_action), axis = 1)
-                                                        current_latent = self.classif_model.graph_dynamics(graph_node_action)
-                                                    for seq in range(len(this_sequence)):
-                                                        #print([current_latent, this_sequence[seq]])
-                                                        #edge_action = torch.stack([this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0]])
-                                                        edge_num = egde_latent.shape[0]
-                                                        edge_action_list = []
-                                                        if self.use_graph_dynamics:
-                                                            current_action = self.classif_model.action_emb(this_sequence[seq])
-                                                        else:
-                                                            current_action = self.classif_model.action_emb(this_sequence[seq])
-                                                        for _ in range(edge_num):
-                                                            edge_action_list.append(current_action[0])
-                                                        edge_action = torch.stack(edge_action_list)
-                                                        graph_edge_action = torch.cat((egde_latent, edge_action), axis = 1)
-                                                        egde_latent = self.classif_model.graph_edge_dynamics(graph_edge_action)
-                                                    #test_loss += loss_func(current_latent, outs_2['current_embed'])
-                                                    #print(egde_latent.shape)
-                                                    # print(current_latent)
-                                                    # print(egde_latent)
-                                                    # outs_edge = self.classif_model.forward_decoder(current_latent, batch.edge_index, egde_latent, batch.batch, sample_action)
-
-                                                    data_2_decoder = self.create_graph(self.num_nodes, self.node_emb_size, current_latent, self.edge_emb_size, egde_latent, sample_action)
-                            
-                                                    batch_decoder_2 = Batch.from_data_list([data_2_decoder]).to(device)
-
-                                                    outs_decoder_2 = self.classif_model_decoder(batch_decoder_2.x, batch_decoder_2.edge_index, batch_decoder_2.edge_attr, batch_decoder_2.batch, batch_decoder_2.action)
-                                                    
-                                                    
-                                                    
-                                                    if self.all_gt_sigmoid:
-                                                        test_loss += self.bce_loss(outs_decoder_2['pred_sigmoid'][:, :], x_tensor_dict_next['batch_all_obj_pair_relation'])
-                                    
-                                                    costs.append(test_loss.detach().cpu().numpy())
-                                                    # if(test_loss.detach().cpu().numpy() < min_cost):
-                                                    #     min_action = this_sequence
-                                                    #     min_cost = test_loss.detach().cpu().numpy()
-                                            
-                                                    #     costs.append(test_loss)
-
-                                                index = np.argsort(costs)
-                                                elite = act[index,:,:]
-                                                elite = elite[:3, :, :]
-                                                    # print('elite')
-                                                    # print(elite)
-                                                act_mu = elite.mean(axis = 0)
-                                                act_sigma = elite.std(axis = 0)
-                                                print([act_mu, act_sigma])
-                                                # if(act_sigma[0][0] < 0.1 and act_sigma[0][1] < 0.1):
-                                                #     break
-                                                #print(act_sigma)
-                                            # print('find_actions')
-                                            # print(act_mu)
-                                            chosen_action = act_mu
-                                            action_numpy = np.zeros((num_nodes, 3))
-                                            action_numpy[obj_mov][0] = chosen_action[0, 0]
-                                            action_numpy[obj_mov][1] = chosen_action[0, 1]
-                                            action_numpy[obj_mov][2] = 0 #np.random.uniform(-0.2,0.2)
-                                            if self.set_max:
-                                                action = np.zeros((num_nodes, self.max_objects + 3))
-                                            else:
-                                                action = np.zeros((num_nodes, num_nodes + 3))
-                                            for i in range(action.shape[0]):
-                                                action[i][obj_mov] = 1
-                                                action[i][-3:] = action_numpy[obj_mov]
-                                                    
-                                            sample_action = torch.Tensor(action).to(device)
-                                            # if(_ == 0):
-                                            #     sample_action = action
-                                            this_sequence = []
-                                            this_sequence.append(sample_action)
-                                            if True:
-                                                loss_func = nn.MSELoss()
-                                                test_loss = 0
-                                                current_latent = outs['current_embed']
-                                                egde_latent = outs['edge_embed']
-                                                #print('prev_embed, edge_embed, action', [current_latent, egde_latent, sample_action])
-                                                for seq in range(len(this_sequence)):
-                                                    #print([current_latent, this_sequence[seq]])
-                                                    if self.use_graph_dynamics:
-                                                        current_action = self.classif_model.action_emb(this_sequence[seq])
-                                                    else:
-                                                        current_action = self.classif_model.action_emb(this_sequence[seq])
-                                                    graph_node_action = torch.cat((current_latent, current_action), axis = 1)
-                                                    current_latent = self.classif_model.graph_dynamics(graph_node_action)
-                                                for seq in range(len(this_sequence)):
-                                                    #print([current_latent, this_sequence[seq]])
-                                                    #edge_action = torch.stack([this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0]])
-                                                    edge_num = egde_latent.shape[0]
-                                                    edge_action_list = []
-                                                    if self.use_graph_dynamics:
-                                                        current_action = self.classif_model.action_emb(this_sequence[seq])
-                                                    else:
-                                                        current_action = self.classif_model.action_emb(this_sequence[seq])
-                                                    for _ in range(edge_num):
-                                                        edge_action_list.append(current_action[0])
-                                                    edge_action = torch.stack(edge_action_list)
-                                                    graph_edge_action = torch.cat((egde_latent, edge_action), axis = 1)
-                                                    egde_latent = self.classif_model.graph_edge_dynamics(graph_edge_action)
-                                                #test_loss += loss_func(current_latent, outs_2['current_embed'])
-                                                #print(egde_latent.shape)
-                                                # print(current_latent)
-                                                # print(egde_latent)
-                                                #outs_edge = self.classif_model.forward_decoder(current_latent, batch.edge_index, egde_latent, batch.batch, sample_action)
-
-                                                data_2_decoder = self.create_graph(self.num_nodes, self.node_emb_size, current_latent, self.edge_emb_size, egde_latent, sample_action)
-                            
-                                                batch_decoder_2 = Batch.from_data_list([data_2_decoder]).to(device)
-
-                                                outs_decoder_2 = self.classif_model_decoder(batch_decoder_2.x, batch_decoder_2.edge_index, batch_decoder_2.edge_attr, batch_decoder_2.batch, batch_decoder_2.action)
-                                                
-                                                
-                                                
-                                                if self.all_gt_sigmoid:
-                                                    test_loss += self.bce_loss(outs_decoder_2['pred_sigmoid'][:, :], x_tensor_dict_next['batch_all_obj_pair_relation'])
-                                        
-                                                #sample_list.append(outs_edge['pred_edge'])
-                                                loss_list.append(test_loss)
-                                                if(test_loss.detach().cpu().numpy() < min_cost):
-                                                    min_prediction = outs_decoder_2['pred_sigmoid'][:, :]
-                                                    min_action = this_sequence
-                                                    min_pose = outs_decoder_2['pred'][:, :]
-                                                    min_cost = test_loss.detach().cpu().numpy()
-
-                                                
-
-                                                
-
-                                        
-                                        # print('initial_edge_embed', x_tensor_dict['batch_all_obj_pair_relation'][0][:])
-                                        # print('min_prediction', min_prediction)
-                                        # print('min node pose prediction', min_pose)
-                                        pred_relations = min_prediction.cpu().detach().numpy()
-                                        goal_relations = x_tensor_dict_next['batch_all_obj_pair_relation'].cpu().detach().numpy()
-
-                                        planning_success_num = 1
-                                        for obj_id in range(pred_relations.shape[0]):
-                                            for relation_id in range(pred_relations.shape[1]):
-                                                if goal_relations[obj_id][relation_id] == 1:
-                                                    if pred_relations[obj_id][relation_id] < planning_threshold:
-                                                        planning_success_num = 0
-                                                elif goal_relations[obj_id][relation_id] == 0:
-                                                    if pred_relations[obj_id][relation_id] > 1 - planning_threshold:
-                                                        planning_success_num = 0
-
-                                        print('pred_relations', pred_relations)
-                                        print('goal_relations shape', goal_relations.shape)
-                                        print('goal_relations', goal_relations)
-                                        print('planning_success_num', planning_success_num)
-                                        node_pose_numpy = node_pose.detach().cpu().numpy()
-                                        change_id_leap = 0
-                                        if True: #for seq in range(len(min_action)):
-                                            this_seq_numpy = min_action[0].cpu().numpy()
-                                            change_id = np.argmax(this_seq_numpy[0][:self.num_nodes])
-                                                #print(change_id)
-                                            if change_id == 0:
-                                                change_id_leap = 1
-                                                node_pose_numpy[0][-3:] += this_seq_numpy[0][-3:]
-                                            #node_pose_numpy[0][3:6] += this_seq_numpy[0][-3:]
-                                            #     #if(this_seq_numpy[0])
-                                            # all_node_pose_list.append(node_pose_numpy)
-                                            # node_pose = torch.Tensor(node_pose_numpy)
-                                            # generate_edge_embed_list = self.generate_edge_embed(node_pose)
-                                        node_pose_numpy_goal = node_pose_goal.detach().cpu().numpy()
-                                        choose_list = [0,-1]
-                                        # print('node_pose', [node_pose_numpy[[0,-1]], node_pose_goal[[0,-1]]])
-                                       
-                                        
-                                        print("min_action", min_action)
-                                        #min_action_numpy
-                                        print("action_torch", action_torch)
-                                        #print()
-                                        print("min_cost", min_cost)
-                                        # if change_id_leap == 1:
-                                        #     goal_loss = loss_func(torch.stack(current_relations[:]), torch.stack(goal_relations[:]))
-                                        #     print(goal_loss)
-                                        #     if(goal_loss.detach().cpu().numpy() < 1e-3):
-                                        #         success_num += 1
-                                        min_action_numpy = min_action[0].cpu().numpy()
-                                        action_numpy = action_torch.cpu().numpy()
-
-                                        # for node_pose_iter in range(node_pose_numpy.shape[0]):
-                                        #     self.node_pose_list.append(node_pose_numpy[node_pose_iter])
-                                        # for action_iter in range(1):
-                                        #     self.action_list.append(min_action_numpy[action_iter])
-                                        # for goal_relation_i in range(goal_relation.shape[0]):
-                                        #     for goal_relation_j in range(goal_relation.shape[1]):
-                                        #         self.goal_relation_list.append(goal_relation[goal_relation_i][goal_relation_j])
-                                        self.node_pose_list.append(node_pose_numpy)
-                                        self.action_list.append(min_action_numpy)
-                                        self.goal_relation_list.append(goal_relations)
-                                        self.gt_pose_list.append(self.gt_pose[0])
-                                        self.gt_extents_range_list.append(self.gt_extents_range[0])
-                                        self.predicted_relations.append(pred_relations)
-                                        
-                                        
-                                        
-                                    
-                                        
-                                        # simplied version of planned action success rate for pushing task
-                                        success_num = 1
-                                        for action_i in range(min_action_numpy.shape[1] - 3):
-                                            if(min_action_numpy[0][action_i] != action_numpy[0][action_i]):
-                                                success_num = 0
-                                        if min_action_numpy[0][-2]*action_numpy[0][-2] < 0: #np.abs(min_action_numpy[0][3] - action_numpy[0][3]) >= 0.06 or np.abs(min_action_numpy[0][4] - action_numpy[0][4]) >= 0.06:
-                                            success_num = 0
-                                        
-                                    print("success_num", success_num)
-                                    print("success_num/total_num", success_num/total_num)                    
-                                elif self.all_classifier:
-                                    success_num = 0
-                                    total_num = 1
-                                    for test_iter in range(total_num):
-                                        print('enter')
-                                        plannning_sequence = 1
-                                        sample_sequence = 1
-                                        num_nodes = self.num_nodes
-                                        data = self.create_graph(self.num_nodes, self.node_inp_size, node_pose, self.edge_inp_size, x_tensor_dict['batch_all_obj_pair_relation'], action_torch)
-                                        data_next = self.create_graph(self.num_nodes, self.node_inp_size, node_pose_goal, self.edge_inp_size, x_tensor_dict_next['batch_all_obj_pair_relation'], action_torch)
-                                        batch = Batch.from_data_list([data]).to(device)
-                                        outs = self.classif_model(batch.x, batch.edge_index, batch.edge_attr, batch.batch, batch.action)
-                                        batch2 = Batch.from_data_list([data_next]).to(device)
-                                        outs_2 = self.classif_model(batch2.x, batch2.edge_index, batch2.edge_attr, batch2.batch, batch2.action)
-                                        
-                                        
-                                        min_cost = 1e5
-                                        loss_list = []
-                                        all_action_list = []
-                                        print('actual action', action)
-                                        for obj_mov in range(self.num_nodes):
-                                            print('mov obj', obj_mov)
-                                            action_selections = 500
-                                            action_mu = np.zeros((action_selections, 1, 2))
-                                            action_sigma = np.ones((action_selections, 1, 2))
-                                            for i_iter in range(5):
-                                                action_noise = (np.random.rand(action_selections, 1, 2) - 0.5) * 2 # change range to (-0.2, 0.2)
-                                                act = action_mu + action_noise*action_sigma
-                                                costs = []
-                                                for j in range(action_selections):
-                                                    action_numpy = np.zeros((num_nodes, 3))
-                                                    action_numpy[obj_mov][0] = act[j, 0, 0]
-                                                    action_numpy[obj_mov][1] = act[j, 0, 1]
-                                                    action_numpy[obj_mov][2] = 0 #np.random.uniform(-0.2,0.2)
-                                                    action = np.zeros((num_nodes, num_nodes + 3))
-                                                    for i in range(action.shape[0]):
-                                                        action[i][obj_mov] = 1
-                                                        action[i][-3:] = action_numpy[obj_mov]
-                                                    
-                                                    sample_action = torch.Tensor(action).to(device)
-                                                    
-                                                    # action_1 = np.zeros((num_nodes, 3 + num_nodes))
-                                                    # for i in range(action_1.shape[0]):
-                                                    #     action_1[i][obj_mov] = 1
-                                                    #     action_1[i][3:] = action_numpy[obj_mov]
-                                                    # sample_action = torch.Tensor(action_1)
-                                                    #sample_action = (torch.rand((num_nodes, node_inp_size)) - 0.5)*20
-                                                    # if(_ == 0):
-                                                    #     sample_action = action
-                                                    this_sequence = []
-                                                    this_sequence.append(sample_action)
-                                                    loss_func = nn.MSELoss()
-                                                    test_loss = 0
-                                                    current_latent = outs['current_embed']
-                                                    egde_latent = outs['edge_embed']
-                                                    #print('prev_embed, edge_embed, action', [current_latent, egde_latent, sample_action])
-                                                    for seq in range(len(this_sequence)):
-                                                        #print([current_latent, this_sequence[seq]])
-                                                        graph_node_action = torch.cat((current_latent, this_sequence[seq]), axis = 1)
-                                                        current_latent = self.classif_model.graph_dynamics(graph_node_action)
-                                                    for seq in range(len(this_sequence)):
-                                                        #print([current_latent, this_sequence[seq]])
-                                                        #edge_action = torch.stack([this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0]])
-                                                        edge_num = egde_latent.shape[0]
-                                                        edge_action_list = []
-                                                        for _ in range(edge_num):
-                                                            edge_action_list.append(this_sequence[seq][0])
-                                                        edge_action = torch.stack(edge_action_list)
-                                                        graph_edge_action = torch.cat((egde_latent, edge_action), axis = 1)
-                                                        egde_latent = self.classif_model.graph_edge_dynamics(graph_edge_action)
-                                                    #test_loss += loss_func(current_latent, outs_2['current_embed'])
-                                                    #print(egde_latent.shape)
-                                                    # print(current_latent)
-                                                    # print(egde_latent)
-                                                    outs_edge = self.classif_model.forward_decoder(current_latent, batch.edge_index, egde_latent, batch.batch, sample_action)
-                                                    
-                                                    
-                                                    
-                                                    if self.all_gt:
-                                                        test_loss += loss_func(x_tensor_dict_next['batch_all_obj_pair_relation'], outs_edge['pred_edge'][:, :])
-                                                    elif self.all_classifier:
-                                                        
-                                                        horizon_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,1]
-                                                        right_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,2]
-                                                        left_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,3]
-                                                        vertical_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,4]
-                                                        front_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,5]
-                                                        behind_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,6]
-                                                        if self.stacking:
-                                                            stack_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,7]
-                                                            top_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,8]
-                                                            below_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,9]
-
-                                                        
-                                                        
-                                                        
-                                                        
-                                                        test_loss += self.CE_loss(outs_edge['pred_edge_classifier'][0], right_tensor_dict) + \
-                                                                self.CE_loss(outs_edge['pred_edge_classifier'][1], left_tensor_dict) + \
-                                                                self.CE_loss(outs_edge['pred_edge_classifier'][2], front_tensor_dict) + \
-                                                                self.CE_loss(outs_edge['pred_edge_classifier'][3], behind_tensor_dict) + \
-                                                                self.CE_loss(outs_edge['pred_edge_classifier'][4], stack_tensor_dict) + \
-                                                                self.CE_loss(outs_edge['pred_edge_classifier'][5], top_tensor_dict) + \
-                                                                self.CE_loss(outs_edge['pred_edge_classifier'][6], below_tensor_dict)
-                                                    else:
-                                                        test_loss += loss_func(x_tensor_dict_next['batch_all_obj_pair_relation'], outs_edge['pred_edge'][:, :])
-                                                    #test_loss += loss_func(goal_relation, outs_edge['pred_edge'])
-                                                    #test_loss += loss_func(egde_latent, outs_2['edge_embed'])
-                                                    #print(outs_edge['pred_edge'].shape)
-                                                    # print(sample_action)
-                                                    # print(test_loss)
-                                                    #sample_list.append(outs_edge['pred_edge'])
-                                                    #loss_list.append(test_loss)
-                                                    costs.append(test_loss.detach().cpu().numpy())
-                                                    # if(test_loss.detach().cpu().numpy() < min_cost):
-                                                    #     min_action = this_sequence
-                                                    #     min_cost = test_loss.detach().cpu().numpy()
-                                            
-                                                    #     costs.append(test_loss)
-
-                                                index = np.argsort(costs)
-                                                elite = act[index,:,:]
-                                                elite = elite[:3, :, :]
-                                                    # print('elite')
-                                                    # print(elite)
-                                                act_mu = elite.mean(axis = 0)
-                                                act_sigma = elite.std(axis = 0)
-                                                print([act_mu, act_sigma])
-                                                # if(act_sigma[0][0] < 0.1 and act_sigma[0][1] < 0.1):
-                                                #     break
-                                                #print(act_sigma)
-                                            # print('find_actions')
-                                            # print(act_mu)
-                                            chosen_action = act_mu
-                                            action_numpy = np.zeros((num_nodes, 3))
-                                            action_numpy[obj_mov][0] = chosen_action[0, 0]
-                                            action_numpy[obj_mov][1] = chosen_action[0, 1]
-                                            action_numpy[obj_mov][2] = 0 #np.random.uniform(-0.2,0.2)
-                                            action = np.zeros((num_nodes, num_nodes + 3))
-                                            for i in range(action.shape[0]):
-                                                action[i][obj_mov] = 1
-                                                action[i][-3:] = action_numpy[obj_mov]
-                                                    
-                                            sample_action = torch.Tensor(action).to(device)
-                                            # if(_ == 0):
-                                            #     sample_action = action
-                                            this_sequence = []
-                                            this_sequence.append(sample_action)
-                                            if True:
-                                                loss_func = nn.MSELoss()
-                                                test_loss = 0
-                                                current_latent = outs['current_embed']
-                                                egde_latent = outs['edge_embed']
-                                                #print('prev_embed, edge_embed, action', [current_latent, egde_latent, sample_action])
-                                                for seq in range(len(this_sequence)):
-                                                    #print([current_latent, this_sequence[seq]])
-                                                    graph_node_action = torch.cat((current_latent, this_sequence[seq]), axis = 1)
-                                                    current_latent = self.classif_model.graph_dynamics(graph_node_action)
-                                                for seq in range(len(this_sequence)):
-                                                    #print([current_latent, this_sequence[seq]])
-                                                    #edge_action = torch.stack([this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0]])
-                                                    edge_num = egde_latent.shape[0]
-                                                    edge_action_list = []
-                                                    for _ in range(edge_num):
-                                                        edge_action_list.append(this_sequence[seq][0])
-                                                    edge_action = torch.stack(edge_action_list)
-                                                    graph_edge_action = torch.cat((egde_latent, edge_action), axis = 1)
-                                                    egde_latent = self.classif_model.graph_edge_dynamics(graph_edge_action)
-                                                #test_loss += loss_func(current_latent, outs_2['current_embed'])
-                                                #print(egde_latent.shape)
-                                                # print(current_latent)
-                                                # print(egde_latent)
-                                                outs_edge = self.classif_model.forward_decoder(current_latent, batch.edge_index, egde_latent, batch.batch, sample_action)
-                                                
-                                                
-                                                
-                                                if self.all_gt:
-                                                    test_loss += loss_func(x_tensor_dict_next['batch_all_obj_pair_relation'], outs_edge['pred_edge'][:, :])
-                                                elif self.all_classifier:
-                                                    horizon_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,1]
-                                                    right_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,2]
-                                                    left_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,3]
-                                                    vertical_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,4]
-                                                    front_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,5]
-                                                    behind_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,6]
-                                                    if self.stacking:
-                                                        stack_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,7]
-                                                        top_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,8]
-                                                        below_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,9]
-
-                                                        
-                                                        
-                                                        
-                                                    print("outs_edge['pred_edge_classifier']", outs_edge['pred_edge_classifier'])
-                    
-                                                    test_loss += self.CE_loss(outs_edge['pred_edge_classifier'][0], right_tensor_dict) + \
-                                                            self.CE_loss(outs_edge['pred_edge_classifier'][1], left_tensor_dict) + \
-                                                            self.CE_loss(outs_edge['pred_edge_classifier'][2], front_tensor_dict) + \
-                                                            self.CE_loss(outs_edge['pred_edge_classifier'][3], behind_tensor_dict) + \
-                                                            self.CE_loss(outs_edge['pred_edge_classifier'][4], stack_tensor_dict) + \
-                                                            self.CE_loss(outs_edge['pred_edge_classifier'][5], top_tensor_dict) + \
-                                                            self.CE_loss(outs_edge['pred_edge_classifier'][6], below_tensor_dict)
-                                                else:
-                                                    test_loss += loss_func(x_tensor_dict_next['batch_all_obj_pair_relation'], outs_edge['pred_edge'][:, :])
-                                                #test_loss += loss_func(torch.stack(scene_emb_list_next[0][:]), outs_edge['pred_edge'][:, :])
-                                                #test_loss += loss_func(goal_relation, outs_edge['pred_edge'])
-                                                #test_loss += loss_func(egde_latent, outs_2['edge_embed'])
-                                                #print(outs_edge['pred_edge'].shape)
-                                                # print(sample_action)
-                                                # print(test_loss)
-                                                #sample_list.append(outs_edge['pred_edge'])
-                                                loss_list.append(test_loss)
-                                                if(test_loss.detach().cpu().numpy() < min_cost):
-                                                    min_prediction = outs_edge['pred_edge'][:, :]
-                                                    min_action = this_sequence
-                                                    min_pose = outs_edge['pred'][:, :]
-                                                    min_cost = test_loss.detach().cpu().numpy()
-
-                                        
-                                        print('initial_edge_embed', x_tensor_dict['batch_all_obj_pair_relation'][0][:])
-                                        print('min_prediction', min_prediction)
-                                        print('min node pose prediction', min_pose)
-                                        node_pose_numpy = node_pose.cpu().numpy()
-                                        change_id_leap = 0
-                                        if True: #for seq in range(len(min_action)):
-                                            this_seq_numpy = min_action[0].cpu().numpy()
-                                            change_id = np.argmax(this_seq_numpy[0][:self.num_nodes])
-                                                #print(change_id)
-                                            if change_id == 0:
-                                                change_id_leap = 1
-                                                node_pose_numpy[0][-3:] += this_seq_numpy[0][-3:]
-                                            #node_pose_numpy[0][3:6] += this_seq_numpy[0][-3:]
-                                            #     #if(this_seq_numpy[0])
-                                            # all_node_pose_list.append(node_pose_numpy)
-                                            # node_pose = torch.Tensor(node_pose_numpy)
-                                            # generate_edge_embed_list = self.generate_edge_embed(node_pose)
-                                        node_pose_numpy_goal = node_pose_goal.cpu().numpy()
-                                        choose_list = [0,-1]
-                                        print('node_pose', [node_pose_numpy[[0,-1]], node_pose_goal[[0,-1]]])
-                                        
-
-                                        
-                                        print("min_action ", min_action)
-                                        print("action_torch ", action_torch)
-                                        #print()
-                                        print("min_cost ", min_cost)
-                                        # if change_id_leap == 1:
-                                        #     goal_loss = loss_func(torch.stack(current_relations[:]), torch.stack(goal_relations[:]))
-                                        #     print(goal_loss)
-                                        #     if(goal_loss.detach().cpu().numpy() < 1e-3):
-                                        #         success_num += 1
-                                        min_action_numpy = min_action[0].cpu().numpy()
-                                        action_numpy = action_torch.cpu().numpy()
-                                        # success_num = 1
-                                        # for action_i in range(min_action_numpy.shape[1] - 3):
-                                        #     if(min_action_numpy[0][action_i] != action_numpy[0][action_i]):
-                                        #         success_num = 0
-                                        # if np.abs(min_action_numpy[0][3] - action_numpy[0][3]) >= 0.06 or np.abs(min_action_numpy[0][4] - action_numpy[0][4]) >= 0.06:
-                                        #     success_num = 0
-                                        #print(node_pose)
-
-                                        #print(node_pose_goal)
-                                        #print(edge_feature_2)
-                                        #print(generate_edge_embed_list)
-                                        #print(all_action_sequence_list)
-                                        #print(all_node_pose_list)
-                                        #print(loss_func(edge_feature_2, torch.stack(generate_edge_embed_list)))
-                                        # goal_loss = loss_func(torch.stack(scene_emb_list_next[0][:12]), torch.stack(generate_edge_embed_list))
-                                        # print(goal_loss)
-                                        # if(goal_loss.detach().cpu().numpy() < 1e-3):
-                                        #     success_num += 1
-                                        # else:
-                                        #     print(loss_list)
-                                        #     print(sample_list)
-                                        # print(loss_list)
-                                        # print(sample_list)
-                                        #print(self.dynamics_loss(node_pose[:,:6], node_pose_goal[:,:6]))
-                                    print(success_num)
-                                    print(success_num/total_num)                    
-                                elif self.all_gt:
-                                    success_num = 0
-                                    total_num = 1
-                                    for test_iter in range(total_num):
-                                        print('enter')
-                                        plannning_sequence = 1
-                                        sample_sequence = 1
-                                        num_nodes = self.num_nodes
-                                        data = self.create_graph(self.num_nodes, self.node_inp_size, node_pose, self.edge_inp_size, x_tensor_dict['batch_all_obj_pair_relation'], action_torch)
-                                        data_next = self.create_graph(self.num_nodes, self.node_inp_size, node_pose_goal, self.edge_inp_size, x_tensor_dict_next['batch_all_obj_pair_relation'], action_torch)
-                                        batch = Batch.from_data_list([data]).to(device)
-                                        outs = self.classif_model(batch.x, batch.edge_index, batch.edge_attr, batch.batch, batch.action)
-                                        batch2 = Batch.from_data_list([data_next]).to(device)
-                                        outs_2 = self.classif_model(batch2.x, batch2.edge_index, batch2.edge_attr, batch2.batch, batch2.action)
-                                        
-                                        
-                                        min_cost = 1e5
-                                        loss_list = []
-                                        all_action_list = []
-                                        print('actual action', action)
-                                        for obj_mov in range(self.num_nodes):
-                                            print('mov obj', obj_mov)
-                                            action_selections = 500
-                                            action_mu = np.zeros((action_selections, 1, 2))
-                                            action_sigma = np.ones((action_selections, 1, 2))
-                                            for i_iter in range(5):
-                                                action_noise = (np.random.rand(action_selections, 1, 2) - 0.5) * 2 # change range to (-0.2, 0.2)
-                                                act = action_mu + action_noise*action_sigma
-                                                costs = []
-                                                for j in range(action_selections):
-                                                    action_numpy = np.zeros((num_nodes, 3))
-                                                    action_numpy[obj_mov][0] = act[j, 0, 0]
-                                                    action_numpy[obj_mov][1] = act[j, 0, 1]
-                                                    action_numpy[obj_mov][2] = 0 #np.random.uniform(-0.2,0.2)
-                                                    action = np.zeros((num_nodes, num_nodes + 3))
-                                                    for i in range(action.shape[0]):
-                                                        action[i][obj_mov] = 1
-                                                        action[i][-3:] = action_numpy[obj_mov]
-                                                    
-                                                    sample_action = torch.Tensor(action).to(device)
-                                                    
-                                                    # action_1 = np.zeros((num_nodes, 3 + num_nodes))
-                                                    # for i in range(action_1.shape[0]):
-                                                    #     action_1[i][obj_mov] = 1
-                                                    #     action_1[i][3:] = action_numpy[obj_mov]
-                                                    # sample_action = torch.Tensor(action_1)
-                                                    #sample_action = (torch.rand((num_nodes, node_inp_size)) - 0.5)*20
-                                                    # if(_ == 0):
-                                                    #     sample_action = action
-                                                    this_sequence = []
-                                                    this_sequence.append(sample_action)
-                                                    loss_func = nn.MSELoss()
-                                                    test_loss = 0
-                                                    current_latent = outs['current_embed']
-                                                    egde_latent = outs['edge_embed']
-                                                    #print('prev_embed, edge_embed, action', [current_latent, egde_latent, sample_action])
-                                                    for seq in range(len(this_sequence)):
-                                                        #print([current_latent, this_sequence[seq]])
-                                                        graph_node_action = torch.cat((current_latent, this_sequence[seq]), axis = 1)
-                                                        current_latent = self.classif_model.graph_dynamics(graph_node_action)
-                                                    for seq in range(len(this_sequence)):
-                                                        #print([current_latent, this_sequence[seq]])
-                                                        #edge_action = torch.stack([this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0]])
-                                                        edge_num = egde_latent.shape[0]
-                                                        edge_action_list = []
-                                                        for _ in range(edge_num):
-                                                            edge_action_list.append(this_sequence[seq][0])
-                                                        edge_action = torch.stack(edge_action_list)
-                                                        graph_edge_action = torch.cat((egde_latent, edge_action), axis = 1)
-                                                        egde_latent = self.classif_model.graph_edge_dynamics(graph_edge_action)
-                                                    #test_loss += loss_func(current_latent, outs_2['current_embed'])
-                                                    #print(egde_latent.shape)
-                                                    # print(current_latent)
-                                                    # print(egde_latent)
-                                                    outs_edge = self.classif_model.forward_decoder(current_latent, batch.edge_index, egde_latent, batch.batch, sample_action)
-                                                    
-                                                    
-                                                    
-                                                    if self.all_gt_sigmoid:
-                                                        test_loss += self.bce_loss(outs_edge['pred_sigmoid'][:, :], x_tensor_dict_next['batch_all_obj_pair_relation'])
-                                                    elif self.all_gt:
-                                                        test_loss += loss_func(x_tensor_dict_next['batch_all_obj_pair_relation'], outs_edge['pred_edge'][:, :])
-                                                    elif self.all_classifier:
-                                                        horizon_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,1]
-                                                        right_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,2]
-                                                        left_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,3]
-                                                        vertical_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,4]
-                                                        front_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,5]
-                                                        behind_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,6]
-                                                        if self.stacking:
-                                                            stack_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,7]
-                                                            top_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,8]
-                                                            below_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,9]
-
-                                                        
-                                                        
-                                                        
-                                                        test_loss += self.CE_loss(outs['pred_edge_classifier'][0], right_tensor_dict) + \
-                                                                self.CE_loss(outs['pred_edge_classifier'][1], left_tensor_dict) + \
-                                                                self.CE_loss(outs['pred_edge_classifier'][2], front_tensor_dict) + \
-                                                                self.CE_loss(outs['pred_edge_classifier'][3], behind_tensor_dict) + \
-                                                                self.CE_loss(outs['pred_edge_classifier'][4], stack_tensor_dict) + \
-                                                                self.CE_loss(outs['pred_edge_classifier'][5], top_tensor_dict) + \
-                                                                self.CE_loss(outs['pred_edge_classifier'][6], below_tensor_dict)
-                                                    else:
-                                                        test_loss += loss_func(x_tensor_dict_next['batch_all_obj_pair_relation'], outs_edge['pred_edge'][:, :])
-                                                    #test_loss += loss_func(goal_relation, outs_edge['pred_edge'])
-                                                    #test_loss += loss_func(egde_latent, outs_2['edge_embed'])
-                                                    #print(outs_edge['pred_edge'].shape)
-                                                    # print(sample_action)
-                                                    # print(test_loss)
-                                                    #sample_list.append(outs_edge['pred_edge'])
-                                                    #loss_list.append(test_loss)
-                                                    costs.append(test_loss.detach().cpu().numpy())
-                                                    # if(test_loss.detach().cpu().numpy() < min_cost):
-                                                    #     min_action = this_sequence
-                                                    #     min_cost = test_loss.detach().cpu().numpy()
-                                            
-                                                    #     costs.append(test_loss)
-
-                                                index = np.argsort(costs)
-                                                elite = act[index,:,:]
-                                                elite = elite[:3, :, :]
-                                                    # print('elite')
-                                                    # print(elite)
-                                                act_mu = elite.mean(axis = 0)
-                                                act_sigma = elite.std(axis = 0)
-                                                print([act_mu, act_sigma])
-                                                # if(act_sigma[0][0] < 0.1 and act_sigma[0][1] < 0.1):
-                                                #     break
-                                                #print(act_sigma)
-                                            # print('find_actions')
-                                            # print(act_mu)
-                                            chosen_action = act_mu
-                                            action_numpy = np.zeros((num_nodes, 3))
-                                            action_numpy[obj_mov][0] = chosen_action[0, 0]
-                                            action_numpy[obj_mov][1] = chosen_action[0, 1]
-                                            action_numpy[obj_mov][2] = 0 #np.random.uniform(-0.2,0.2)
-                                            action = np.zeros((num_nodes, num_nodes + 3))
-                                            for i in range(action.shape[0]):
-                                                action[i][obj_mov] = 1
-                                                action[i][-3:] = action_numpy[obj_mov]
-                                                    
-                                            sample_action = torch.Tensor(action).to(device)
-                                            # if(_ == 0):
-                                            #     sample_action = action
-                                            this_sequence = []
-                                            this_sequence.append(sample_action)
-                                            if True:
-                                                loss_func = nn.MSELoss()
-                                                test_loss = 0
-                                                current_latent = outs['current_embed']
-                                                egde_latent = outs['edge_embed']
-                                                #print('prev_embed, edge_embed, action', [current_latent, egde_latent, sample_action])
-                                                for seq in range(len(this_sequence)):
-                                                    #print([current_latent, this_sequence[seq]])
-                                                    graph_node_action = torch.cat((current_latent, this_sequence[seq]), axis = 1)
-                                                    current_latent = self.classif_model.graph_dynamics(graph_node_action)
-                                                for seq in range(len(this_sequence)):
-                                                    #print([current_latent, this_sequence[seq]])
-                                                    #edge_action = torch.stack([this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0]])
-                                                    edge_num = egde_latent.shape[0]
-                                                    edge_action_list = []
-                                                    for _ in range(edge_num):
-                                                        edge_action_list.append(this_sequence[seq][0])
-                                                    edge_action = torch.stack(edge_action_list)
-                                                    graph_edge_action = torch.cat((egde_latent, edge_action), axis = 1)
-                                                    egde_latent = self.classif_model.graph_edge_dynamics(graph_edge_action)
-                                                #test_loss += loss_func(current_latent, outs_2['current_embed'])
-                                                #print(egde_latent.shape)
-                                                # print(current_latent)
-                                                # print(egde_latent)
-                                                outs_edge = self.classif_model.forward_decoder(current_latent, batch.edge_index, egde_latent, batch.batch, sample_action)
-                                                
-                                                
-                                                
-                                                if self.all_gt_sigmoid:
-                                                    test_loss += self.bce_loss(outs_edge['pred_sigmoid'][:, :], x_tensor_dict_next['batch_all_obj_pair_relation'])
-                                                elif self.all_gt:
-                                                    test_loss += loss_func(x_tensor_dict_next['batch_all_obj_pair_relation'], outs_edge['pred_edge'][:, :])
-                                                elif self.all_classifier:
-                                                    horizon_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,1]
-                                                    right_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,2]
-                                                    left_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,3]
-                                                    vertical_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,4]
-                                                    front_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,5]
-                                                    behind_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,6]
-                                                    if self.stacking:
-                                                        stack_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,7]
-                                                        top_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,8]
-                                                        below_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,9]
-
-                                                        
-                                                        
-                                                        
-                                                    test_loss += self.CE_loss(outs['pred_edge_classifier'][0], right_tensor_dict) + \
-                                                            self.CE_loss(outs['pred_edge_classifier'][1], left_tensor_dict) + \
-                                                            self.CE_loss(outs['pred_edge_classifier'][2], front_tensor_dict) + \
-                                                            self.CE_loss(outs['pred_edge_classifier'][3], behind_tensor_dict) + \
-                                                            self.CE_loss(outs['pred_edge_classifier'][4], stack_tensor_dict) + \
-                                                            self.CE_loss(outs['pred_edge_classifier'][5], top_tensor_dict) + \
-                                                            self.CE_loss(outs['pred_edge_classifier'][6], below_tensor_dict)
-                                                else:
-                                                    test_loss += loss_func(x_tensor_dict_next['batch_all_obj_pair_relation'], outs_edge['pred_edge'][:, :])
-                                                #test_loss += loss_func(torch.stack(scene_emb_list_next[0][:]), outs_edge['pred_edge'][:, :])
-                                                #test_loss += loss_func(goal_relation, outs_edge['pred_edge'])
-                                                #test_loss += loss_func(egde_latent, outs_2['edge_embed'])
-                                                #print(outs_edge['pred_edge'].shape)
-                                                # print(sample_action)
-                                                # print(test_loss)
-                                                #sample_list.append(outs_edge['pred_edge'])
-                                                loss_list.append(test_loss)
-                                                if(test_loss.detach().cpu().numpy() < min_cost):
-                                                    min_prediction = outs_edge['pred_edge'][:, :]
-                                                    min_action = this_sequence
-                                                    min_pose = outs_edge['pred'][:, :]
-                                                    min_cost = test_loss.detach().cpu().numpy()
-
-                                        
-                                        print('initial_edge_embed', x_tensor_dict['batch_all_obj_pair_relation'][0][:])
-                                        print('min_prediction', min_prediction)
-                                        print('min node pose prediction', min_pose)
-                                        node_pose_numpy = node_pose.cpu().numpy()
-                                        change_id_leap = 0
-                                        if True: #for seq in range(len(min_action)):
-                                            this_seq_numpy = min_action[0].cpu().numpy()
-                                            change_id = np.argmax(this_seq_numpy[0][:self.num_nodes])
-                                                #print(change_id)
-                                            if change_id == 0:
-                                                change_id_leap = 1
-                                                node_pose_numpy[0][-3:] += this_seq_numpy[0][-3:]
-                                            #node_pose_numpy[0][3:6] += this_seq_numpy[0][-3:]
-                                            #     #if(this_seq_numpy[0])
-                                            # all_node_pose_list.append(node_pose_numpy)
-                                            # node_pose = torch.Tensor(node_pose_numpy)
-                                            # generate_edge_embed_list = self.generate_edge_embed(node_pose)
-                                        node_pose_numpy_goal = node_pose_goal.cpu().numpy()
-                                        choose_list = [0,-1]
-                                        print('node_pose', [node_pose_numpy[[0,-1]], node_pose_goal[[0,-1]]])
-                                        
-
-                                        
-                                        print(min_action)
-                                        #min_action_numpy
-                                        print(action_torch)
-                                        #print()
-                                        print(min_cost)
-                                        # if change_id_leap == 1:
-                                        #     goal_loss = loss_func(torch.stack(current_relations[:]), torch.stack(goal_relations[:]))
-                                        #     print(goal_loss)
-                                        #     if(goal_loss.detach().cpu().numpy() < 1e-3):
-                                        #         success_num += 1
-                                        min_action_numpy = min_action[0].cpu().numpy()
-                                        action_numpy = action_torch.cpu().numpy()
-
-                                        for node_pose_iter in range(node_pose_numpy.shape[0]):
-                                            self.node_pose_list.append(node_pose_numpy[node_pose_iter])
-                                        for action_iter in range(1):
-                                            self.action_list.append(min_action_numpy[action_iter])
-                                        
-                                    
-                                    print(success_num)
-                                    print(success_num/total_num)                    
-                            else:
-                                success_num = 0
-                                total_num = 1
-                                for test_iter in range(total_num):
-                                    print('enter')
-                                    plannning_sequence = 1
-                                    sample_sequence = 1
-                                    num_nodes = self.num_nodes
-                                    data = self.create_graph(self.num_nodes, self.node_inp_size, node_pose, self.edge_inp_size, torch.stack(scene_emb_list[0]), action_torch)
-                                    data_next = self.create_graph(self.num_nodes, self.node_inp_size, node_pose_goal, self.edge_inp_size, torch.stack(scene_emb_list_next[0]), action_torch)
-                                    batch = Batch.from_data_list([data]).to(device)
-                                    outs = self.classif_model(batch.x, batch.edge_index, batch.edge_attr, batch.batch, batch.action)
-                                    batch2 = Batch.from_data_list([data_next]).to(device)
-                                    outs_2 = self.classif_model(batch2.x, batch2.edge_index, batch2.edge_attr, batch2.batch, batch2.action)
-                                    
-                                    min_cost = 1e5
-                                    all_action_sequence_list = []
-                                    all_node_pose_list = []
-                                    all_node_pose_list.append(node_pose.cpu().numpy())
-                                    #print('init node pose', node_pose)
-                                    for test_seq in range(plannning_sequence):
-                                        loss_list = []
-                                        sample_list = []
-                                        for _ in range(200):
-                                            this_sequence = []
-                                            for seq in range(sample_sequence):
-                                                obj_mov = np.random.randint(num_nodes)
-                                                action_numpy = np.zeros((num_nodes, 3))
-                                                action_numpy[obj_mov][0] = np.random.uniform(-1,1)
-                                                action_numpy[obj_mov][1] = np.random.uniform(-1,1)
-                                                # z_choice_list = [0,0.10,0.18]
-                                                # action_numpy[obj_mov][2] = z_choice_list[np.random.randint(len(z_choice_list))]
-                                                action_1 = np.zeros((num_nodes, 3 + num_nodes))
-                                                for i in range(action_1.shape[0]):
-                                                    action_1[i][obj_mov] = 1
-                                                    action_1[i][3:] = action_numpy[obj_mov]
-                                                sample_action = torch.Tensor(action_1)
-                                                sample_action = sample_action.to(device)
-                                                if _ == 0:
-                                                    sample_action = action_torch
-                                                this_sequence.append(sample_action)
-                                            loss_func = nn.MSELoss()
-                                            test_loss = 0
-                                            current_latent = outs['current_embed']
-                                            egde_latent = outs['edge_embed']
-                                            #print('prev_embed, edge_embed, action', [current_latent, egde_latent, sample_action])
-                                            for seq in range(len(this_sequence)):
-                                                #print([current_latent, this_sequence[seq]])
-                                                graph_node_action = torch.cat((current_latent, this_sequence[seq]), axis = 1)
-                                                current_latent = self.classif_model.graph_dynamics(graph_node_action)
-                                            for seq in range(len(this_sequence)):
-                                                #print([current_latent, this_sequence[seq]])
-                                                edge_action = torch.stack([this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0]])
-                                                graph_edge_action = torch.cat((egde_latent, edge_action), axis = 1)
-                                                egde_latent = self.classif_model.graph_edge_dynamics(graph_edge_action)
-                                            #test_loss += loss_func(current_latent, outs_2['current_embed'])
-                                            #print(egde_latent.shape)
-                                            # print(current_latent)
-                                            # print(egde_latent)
-                                            outs_edge = self.classif_model.forward_decoder(current_latent, batch.edge_index, egde_latent, batch.batch, sample_action)
-                                            
-                                            test_loss = loss_func(torch.stack(scene_emb_list_next[0][:]), outs_edge['pred_edge'][:])
-                                            #test_loss += loss_func(egde_latent, outs_2['edge_embed'])
-                                            #print(outs_edge['pred_edge'].shape)
-                                            # print(sample_action)
-                                            # print(test_loss)
-                                            sample_list.append(outs_edge['pred_edge'])
-                                            loss_list.append(test_loss)
-                                            if(test_loss.detach().cpu().numpy() < min_cost):
-                                                min_action = this_sequence
-                                                min_cost = test_loss.detach().cpu().numpy()
-                                        #print(loss_list)
-                                        node_pose_numpy = node_pose.cpu().numpy()
-                                        if True: #for seq in range(len(min_action)):
-                                            this_seq_numpy = min_action[0].cpu().numpy()
-                                            all_action_sequence_list.append(this_seq_numpy[0])
-                                            #print(this_seq_numpy[0][:3])
-                                            change_id = np.argmax(this_seq_numpy[0][:3])
-                                            #print(change_id)
-                                            node_pose_numpy[change_id][3:6] += this_seq_numpy[0][3:]
-                                            #if(this_seq_numpy[0])
-                                            all_node_pose_list.append(node_pose_numpy)
-                                            node_pose = torch.Tensor(node_pose_numpy)
-                                            generate_edge_embed_list = self.generate_edge_embed(node_pose)
-                                            #print(generate_edge_embed_list)
-                                            # data = self.create_graph(num_nodes, self.node_inp_size, node_pose, self.edge_inp_size, torch.stack(generate_edge_embed_list), min_action[0])
-                                            # batch = Batch.from_data_list([data]).to(device)
-                                            # outs = self.classif_model(batch.x, batch.edge_index, batch.edge_attr, batch.batch, batch.action)
-                                    print(min_action)
-                                    print(action)
-                                    #print()
-                                    print(min_cost)
-                                    min_action_numpy = min_action[0].cpu().numpy()
-                                    action_numpy = action.cpu().numpy()
-                                    success_num = 1
-                                    for action_i in range(min_action_numpy.shape[1] - 3):
-                                        if(min_action_numpy[0][action_i] != action_numpy[0][0][action_i]):
-                                            success_num = 0
-                                    if np.abs(min_action_numpy[0][3] - action_numpy[0][0][3]) >= 0.06 or np.abs(min_action_numpy[0][4] - action_numpy[0][0][4]) >= 0.06:
-                                        success_num = 0
-                                    #print(node_pose)
-
-                                    #print(node_pose_goal)
-                                    #print(edge_feature_2)
-                                    #print(generate_edge_embed_list)
-                                    #print(all_action_sequence_list)
-                                    #print(all_node_pose_list)
-                                    #print(loss_func(edge_feature_2, torch.stack(generate_edge_embed_list)))
-                                    # goal_loss = loss_func(torch.stack(scene_emb_list_next[0][:12]), torch.stack(generate_edge_embed_list))
-                                    # print(goal_loss)
-                                    # if(goal_loss.detach().cpu().numpy() < 1e-3):
-                                    #     success_num += 1
-                                    # else:
-                                    #     print(loss_list)
-                                    #     print(sample_list)
-                                    # print(loss_list)
-                                    # print(sample_list)
-                                    #print(self.dynamics_loss(node_pose[:,:6], node_pose_goal[:,:6]))
-                                print(success_num)
-                                print(success_num/total_num)
-
-                        else:
-                            plannning_sequence = 2
-                            sample_sequence = 1
-                            print('init_node_pose', node_pose)
-                            data = self.create_graph(self.num_nodes, self.node_inp_size, node_pose, self.edge_inp_size, torch.stack(scene_emb_list[0]), action_torch)
-                            data_next = self.create_graph(self.num_nodes, self.node_inp_size, node_pose_goal, self.edge_inp_size, torch.stack(scene_emb_list_next[0]), action_torch)
-                            batch = Batch.from_data_list([data]).to(device)
-                            outs = self.classif_model(batch.x, batch.edge_index, batch.edge_attr, batch.batch, batch.action)
-                            batch2 = Batch.from_data_list([data_next]).to(device)
-                            outs_2 = self.classif_model(batch2.x, batch2.edge_index, batch2.edge_attr, batch2.batch, batch2.action)
-                            min_cost = 1e5
-                            all_action_sequence_list = []
-                            all_node_pose_list = []
-                            all_node_pose_list.append(node_pose.cpu().numpy())
-                            for test_seq in range(plannning_sequence):
-                                loss_list = []
-                                for _ in range(1000):
-                                    this_sequence = []
-                                    for seq in range(sample_sequence):
-                                        obj_mov = np.random.randint(self.num_nodes)
-                                        action_numpy = np.zeros((self.num_nodes, 3))
-                                        action_numpy[obj_mov][0] = np.random.uniform(-0.3,0.3)
-                                        action_numpy[obj_mov][1] = np.random.uniform(-0.6,0.6)
-                                        z_choice_list = [0,0.10,0.18]
-                                        action_numpy[obj_mov][2] = z_choice_list[np.random.randint(len(z_choice_list))]
-                                        action_1 = np.zeros((self.num_nodes, 3 + self.num_nodes))
-                                        for i in range(action_1.shape[0]):
-                                            action_1[i][obj_mov] = 1
-                                            action_1[i][3:] = action_numpy[obj_mov]
-                                        sample_action = torch.Tensor(action_1).to(device)
-                                        this_sequence.append(sample_action)
-                                    loss_func = nn.MSELoss()
-                                    test_loss = 0
-                                    current_latent = outs['current_embed']
-                                    for seq in range(len(this_sequence)):
-                                        #print([current_latent, this_sequence[seq]])
-                                        graph_node_action = torch.cat((current_latent, this_sequence[seq]), axis = 1)
-                                        current_latent = self.classif_model.graph_dynamics(graph_node_action)
-                                    test_loss += loss_func(current_latent, outs_2['current_embed'])
-                                    # print(sample_action)
-                                    # print(test_loss)
-                                    loss_list.append(test_loss)
-                                    if(test_loss.detach().cpu().numpy() < min_cost):
-                                        min_action = this_sequence
-                                        min_cost = test_loss.detach().cpu().numpy()
-                                #print(loss_list)
-                                node_pose_numpy = node_pose.cpu().numpy()
-                                if True: #for seq in range(len(min_action)):
-                                    this_seq_numpy = min_action[0].cpu().numpy()
-                                    all_action_sequence_list.append(this_seq_numpy[0])
-                                    #print(this_seq_numpy[0][:3])
-                                    change_id = np.argmax(this_seq_numpy[0][:3])
-                                    #print(change_id)
-                                    node_pose_numpy[change_id][3:6] += this_seq_numpy[0][3:]
-                                    node_pose_numpy[change_id][5] -= 0.02
-                                    #if(this_seq_numpy[0])
-                                    all_node_pose_list.append(node_pose_numpy)
-                                    node_pose = torch.Tensor(node_pose_numpy).to(device)
-                                    generate_edge_embed_list = self.generate_edge_embed(node_pose)
-                                    #print(generate_edge_embed_list)
-                                    data = self.create_graph(self.num_nodes, self.node_inp_size, node_pose, self.edge_inp_size, torch.stack(scene_emb_list[0]), min_action[0])
-                                    batch = Batch.from_data_list([data]).to(device)
-                                    outs = self.classif_model(batch.x, batch.edge_index, batch.edge_attr, batch.batch, batch.action)
-                            # print(min_action)
-                            # print(min_cost)
-                            print(node_pose)
-
-                            #print(node_pose_numpy)
-                            print(node_pose_goal)
-                            print(all_action_sequence_list)
-                            #print(all_node_pose_list)
-                            print(self.dynamics_loss(node_pose[:,:6], node_pose_goal[:,:6]))
-                                #print(action)
-            else:
-                if graph_latent:
-                    if True:
-                        if edge_classifier:
-                            if cem_planning:
-                                if self.all_gt_sigmoid:
-                                    success_num = 0
-                                    total_num = 1
-                                    planning_success_num = 0
-                                    planning_total_num = 0
-                                    planning_threshold = threshold
-                                    print('gt_pose', self.gt_pose)
-
-                                    for test_iter in range(total_num):
-                                        print('enter')
-                                        plannning_sequence = 1
-                                        sample_sequence = 1
-                                        num_nodes = self.num_nodes
-
-                                        
-
-                                        if self.test_next_step:
-                                            data_1 = self.create_graph(self.num_nodes, self.node_inp_size, node_pose_goal, 0, None, action_torch)
-                                        else:
-                                            data_1 = self.create_graph(self.num_nodes, self.node_inp_size, node_pose, 0, None, action_torch)
-                                        current_goal_relations = np.array([[1., 0., 0., 1., 0., 0., 0.],  # 1-2  # (1,0) for z as below as anchor, other
-                                                    [1., 0., 0., 1., 0., 0., 0.],   # 1-3
-                                                    [0., 0., 1., 0., 0., 0., 0.],   # 2-1
-                                                    [0., 0., 0., 1., 0., 0., 0.],   # 2-3  need action as -y?   (0,1) as -y for based on the anchor, other, same for x
-                                                    [0., 0., 1., 0., 0., 0., 0.],   # 3-1
-                                                    [0., 0., 1., 0., 0., 0., 0.]]) # 3-2
-                                        
-                                        if self.test_next_step:
-                                            x_tensor_dict_next['batch_all_obj_pair_relation'] = torch.Tensor(current_goal_relations).to(device)
-                                            index_i = [1]
-                                            index_j = [0]
-                                            print('index', [index_i, index_j])
-                                        
-                                        batch = Batch.from_data_list([data_1]).to(device)
-                                        outs = self.classif_model(batch.x, batch.edge_index, batch.edge_attr, batch.batch, batch.action)
-
-
-
-                                        data_1_decoder = self.create_graph(self.num_nodes, self.node_emb_size, outs['pred'],self. edge_emb_size, outs['pred_edge'], action_torch)                    
-                                        batch_decoder = Batch.from_data_list([data_1_decoder]).to(device)
-                                        outs_decoder = self.classif_model_decoder(batch_decoder.x, batch_decoder.edge_index, batch_decoder.edge_attr, batch_decoder.batch, batch_decoder.action)
-
-
-
-                                        # data = self.create_graph(self.num_nodes, self.node_inp_size, node_pose, self.edge_inp_size, torch.stack(scene_emb_list[0]), action_torch)
-                                        # data_next = self.create_graph(self.num_nodes, self.node_inp_size, node_pose_goal, self.edge_inp_size, x_tensor_dict_next['batch_all_obj_pair_relation'], action_torch)
-                                        # batch = Batch.from_data_list([data]).to(device)
-                                        # outs = self.classif_model(batch.x, batch.edge_index, batch.edge_attr, batch.batch, batch.action)
-                                        # batch2 = Batch.from_data_list([data_next]).to(device)
-                                        # outs_2 = self.classif_model(batch2.x, batch2.edge_index, batch2.edge_attr, batch2.batch, batch2.action)
-                                        
-                                        
-                                        min_cost = 1e5
-                                        loss_list = []
-                                        all_action_list = []
-                                        print('actual action', action)
-                                        for obj_mov in range(self.num_nodes):
-                                            print('mov obj', obj_mov)
-                                            action_selections = 500
-                                            action_mu = np.zeros((action_selections, 1, 2))
-                                            action_sigma = np.ones((action_selections, 1, 2))
-                                            for i_iter in range(5):
-                                                action_noise = np.zeros((action_selections, 1, 2))
-                                                action_noise[:,:,0] = (np.random.rand(action_selections, 1) - 0.5)*0.6
-                                                action_noise[:,:,1] = (np.random.rand(action_selections, 1) - 0.5)*0.6
-                                                #action_noise = (np.random.rand(action_selections, 1, 2) - 0.5) * 0.4 # change range to (-0.2, 0.2)
-                                                act = action_mu + action_noise*action_sigma
-                                                costs = []
-                                                for j in range(action_selections):
-                                                    action_numpy = np.zeros((num_nodes, 3))
-                                                    action_numpy[obj_mov][0] = act[j, 0, 0]
-                                                    action_numpy[obj_mov][1] = act[j, 0, 1]
-                                                    action_numpy[obj_mov][2] = 0 #np.random.uniform(-0.2,0.2)
-                                                    
-                                                    if self.set_max:
-                                                        action = np.zeros((num_nodes, self.max_objects + 3))
-                                                    else:
-                                                        action = np.zeros((num_nodes, num_nodes + 3))
-                                                    for i in range(action.shape[0]):
-                                                        action[i][obj_mov] = 1
-                                                        action[i][-3:] = action_numpy[obj_mov]
-                                                    
-                                                    sample_action = torch.Tensor(action).to(device)
-                                                    
-                                                    # action_1 = np.zeros((num_nodes, 3 + num_nodes))
-                                                    # for i in range(action_1.shape[0]):
-                                                    #     action_1[i][obj_mov] = 1
-                                                    #     action_1[i][3:] = action_numpy[obj_mov]
-                                                    # sample_action = torch.Tensor(action_1)
-                                                    #sample_action = (torch.rand((num_nodes, node_inp_size)) - 0.5)*20
-                                                    # if(_ == 0):
-                                                    #     sample_action = action
-                                                    this_sequence = []
-                                                    this_sequence.append(sample_action)
-                                                    loss_func = nn.MSELoss()
-                                                    test_loss = 0
-                                                    current_latent = outs['current_embed']
-                                                    egde_latent = outs['edge_embed']
-                                                    #print('prev_embed, edge_embed, action', [current_latent, egde_latent, sample_action])
-                                                    for seq in range(len(this_sequence)):
-                                                        #print([current_latent, this_sequence[seq]])
-                                                        if self.use_graph_dynamics:
-                                                            current_action = self.classif_model.action_emb(this_sequence[seq])
-                                                        else:
-                                                            current_action = self.classif_model.action_emb(this_sequence[seq])
-
-                                                        graph_node_action = torch.cat((current_latent, current_action), axis = 1)
-                                                        current_latent = self.classif_model.graph_dynamics(graph_node_action)
-                                                    for seq in range(len(this_sequence)):
-                                                        #print([current_latent, this_sequence[seq]])
-                                                        #edge_action = torch.stack([this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0]])
-                                                        edge_num = egde_latent.shape[0]
-                                                        edge_action_list = []
-                                                        if self.use_graph_dynamics:
-                                                            current_action = self.classif_model.action_emb(this_sequence[seq])
-                                                        else:
-                                                            current_action = self.classif_model.action_emb(this_sequence[seq])
-                                                        for _ in range(edge_num):
-                                                            edge_action_list.append(current_action[0])
-                                                        edge_action = torch.stack(edge_action_list)
-                                                        graph_edge_action = torch.cat((egde_latent, edge_action), axis = 1)
-                                                        egde_latent = self.classif_model.graph_edge_dynamics(graph_edge_action)
-                                                    #test_loss += loss_func(current_latent, outs_2['current_embed'])
-                                                    #print(egde_latent.shape)
-                                                    # print(current_latent)
-                                                    # print(egde_latent)
-                                                    # outs_edge = self.classif_model.forward_decoder(current_latent, batch.edge_index, egde_latent, batch.batch, sample_action)
-
-                                                    data_2_decoder = self.create_graph(self.num_nodes, self.node_emb_size, current_latent, self.edge_emb_size, egde_latent, sample_action)
-                            
-                                                    batch_decoder_2 = Batch.from_data_list([data_2_decoder]).to(device)
-
-                                                    outs_decoder_2 = self.classif_model_decoder(batch_decoder_2.x, batch_decoder_2.edge_index, batch_decoder_2.edge_attr, batch_decoder_2.batch, batch_decoder_2.action)
-                                                    
-                                                    
-                                                    
-                                                    if self.all_gt_sigmoid:
-                                                        if self.test_next_step:
-                                                            #print(x_tensor_dict_next['batch_all_obj_pair_relation'][index_i, index_j].shape)
-                                                            test_loss += self.bce_loss(outs_decoder_2['pred_sigmoid'][index_i, index_j], x_tensor_dict_next['batch_all_obj_pair_relation'][index_i, index_j])
-                                                        else:
-                                                            test_loss += self.bce_loss(outs_decoder_2['pred_sigmoid'][:, :], x_tensor_dict_next['batch_all_obj_pair_relation'])
+                    # # action as push block 2  [0.6176837668646232, -0.12890155670030637, 0.9120449995994568]
+                    # # [[0, 0, 0, 1, 0, 0], [1, 0, 0, 1, 0, 0], [0, 0, 1, 0, 0, 0], [1, 0, 0, 1, 0, 0], [0, 1, 1, 0, 0, 0], [0, 1, 1, 0, 0, 0]]
+                    x_tensor_dict_next['batch_all_obj_pair_relation'] = torch.Tensor(goal_relations).to(device)
+                    print(x_tensor_dict_next['batch_all_obj_pair_relation'])
+                    #time.sleep(5)
                 
-                                                    costs.append(test_loss.detach().cpu().numpy())
-                                                    # if(test_loss.detach().cpu().numpy() < min_cost):
-                                                    #     min_action = this_sequence
-                                                    #     min_cost = test_loss.detach().cpu().numpy()
-                                            
-                                                    #     costs.append(test_loss)
-
-                                                index = np.argsort(costs)
-                                                elite = act[index,:,:]
-                                                elite = elite[:3, :, :]
-                                                    # print('elite')
-                                                    # print(elite)
-                                                act_mu = elite.mean(axis = 0)
-                                                act_sigma = elite.std(axis = 0)
-                                                print([act_mu, act_sigma])
-                                                # if(act_sigma[0][0] < 0.1 and act_sigma[0][1] < 0.1):
-                                                #     break
-                                                #print(act_sigma)
-                                            # print('find_actions')
-                                            # print(act_mu)
-                                            chosen_action = act_mu
-                                            action_numpy = np.zeros((num_nodes, 3))
-                                            action_numpy[obj_mov][0] = chosen_action[0, 0]
-                                            action_numpy[obj_mov][1] = chosen_action[0, 1]
-                                            action_numpy[obj_mov][2] = 0 #np.random.uniform(-0.2,0.2)
-                                            if self.set_max:
-                                                action = np.zeros((num_nodes, self.max_objects + 3))
-                                            else:
-                                                action = np.zeros((num_nodes, num_nodes + 3))
-                                            for i in range(action.shape[0]):
-                                                action[i][obj_mov] = 1
-                                                action[i][-3:] = action_numpy[obj_mov]
-                                                    
-                                            sample_action = torch.Tensor(action).to(device)
-                                            # if(_ == 0):
-                                            #     sample_action = action
-                                            this_sequence = []
-                                            this_sequence.append(sample_action)
-                                            if True:
-                                                loss_func = nn.MSELoss()
-                                                test_loss = 0
-                                                current_latent = outs['current_embed']
-                                                egde_latent = outs['edge_embed']
-                                                #print('prev_embed, edge_embed, action', [current_latent, egde_latent, sample_action])
-                                                for seq in range(len(this_sequence)):
-                                                    #print([current_latent, this_sequence[seq]])
-                                                    if self.use_graph_dynamics:
-                                                        current_action = self.classif_model.action_emb(this_sequence[seq])
-                                                    else:
-                                                        current_action = self.classif_model.action_emb(this_sequence[seq])
-                                                    graph_node_action = torch.cat((current_latent, current_action), axis = 1)
-                                                    current_latent = self.classif_model.graph_dynamics(graph_node_action)
-                                                for seq in range(len(this_sequence)):
-                                                    #print([current_latent, this_sequence[seq]])
-                                                    #edge_action = torch.stack([this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0]])
-                                                    edge_num = egde_latent.shape[0]
-                                                    edge_action_list = []
-                                                    if self.use_graph_dynamics:
-                                                        current_action = self.classif_model.action_emb(this_sequence[seq])
-                                                    else:
-                                                        current_action = self.classif_model.action_emb(this_sequence[seq])
-                                                    for _ in range(edge_num):
-                                                        edge_action_list.append(current_action[0])
-                                                    edge_action = torch.stack(edge_action_list)
-                                                    graph_edge_action = torch.cat((egde_latent, edge_action), axis = 1)
-                                                    egde_latent = self.classif_model.graph_edge_dynamics(graph_edge_action)
-                                                #test_loss += loss_func(current_latent, outs_2['current_embed'])
-                                                #print(egde_latent.shape)
-                                                # print(current_latent)
-                                                # print(egde_latent)
-                                                #outs_edge = self.classif_model.forward_decoder(current_latent, batch.edge_index, egde_latent, batch.batch, sample_action)
-
-                                                data_2_decoder = self.create_graph(self.num_nodes, self.node_emb_size, current_latent, self.edge_emb_size, egde_latent, sample_action)
+                min_cost = 1e5
+                loss_list = []
+                all_action_list = []
+                print('actual action', action)
+                for obj_mov in range(self.num_nodes):
+                    print('mov obj', obj_mov)
+                    action_selections = 500
+                    action_mu = np.zeros((action_selections, 1, 2))
+                    action_sigma = np.ones((action_selections, 1, 2))
+                    for i_iter in range(5):
+                        action_noise = np.zeros((action_selections, 1, 2))
+                        action_noise[:,:,0] = (np.random.rand(action_selections, 1) - 0.5) * 0.1
+                        action_noise[:,:,1] = (np.random.rand(action_selections, 1) - 0.5) * 0.6
+                        #action_noise = (np.random.rand(action_selections, 1, 2) - 0.5) * 0.4 # change range to (-0.2, 0.2)
+                        act = action_mu + action_noise*action_sigma
+                        costs = []
+                        for j in range(action_selections):
+                            action_numpy = np.zeros((num_nodes, 3))
+                            action_numpy[obj_mov][0] = act[j, 0, 0]
+                            action_numpy[obj_mov][1] = act[j, 0, 1]
+                            action_numpy[obj_mov][2] = 0 #np.random.uniform(-0.2,0.2)
                             
-                                                batch_decoder_2 = Batch.from_data_list([data_2_decoder]).to(device)
-
-                                                outs_decoder_2 = self.classif_model_decoder(batch_decoder_2.x, batch_decoder_2.edge_index, batch_decoder_2.edge_attr, batch_decoder_2.batch, batch_decoder_2.action)
-                                                
-                                                
-                                                
-                                                if self.all_gt_sigmoid:
-                                                    if self.test_next_step:
-                                                        test_loss += self.bce_loss(outs_decoder_2['pred_sigmoid'][index_i, index_j], x_tensor_dict_next['batch_all_obj_pair_relation'][index_i, index_j])
-                                                    else:
-                                                        test_loss += self.bce_loss(outs_decoder_2['pred_sigmoid'][:, :], x_tensor_dict_next['batch_all_obj_pair_relation'])
-                    
-                                                #sample_list.append(outs_edge['pred_edge'])
-                                                loss_list.append(test_loss)
-                                                print(test_loss)
-                                                #print(outs_decoder_2['pred_sigmoid'][:, :])
-                                                if self.test_next_step:
-                                                    print('predicted_relations',outs_decoder_2['pred_sigmoid'][index_i, index_j])
-                                                    print('ground truth relations', x_tensor_dict_next['batch_all_obj_pair_relation'][index_i, index_j])
-                                                if(test_loss.detach().cpu().numpy() < min_cost):
-                                                    min_prediction = outs_decoder_2['pred_sigmoid'][:, :]
-                                                    min_action = this_sequence
-                                                    min_pose = outs_decoder_2['pred'][:, :]
-                                                    min_cost = test_loss.detach().cpu().numpy()
-
-                                                
-
-                                                
-
-                                        
-                                        # print('initial_edge_embed', x_tensor_dict['batch_all_obj_pair_relation'][0][:])
-                                        # print('min_prediction', min_prediction)
-                                        # print('min node pose prediction', min_pose)
-                                        pred_relations = min_prediction.cpu().detach().numpy()
-                                        goal_relations = x_tensor_dict_next['batch_all_obj_pair_relation'].cpu().detach().numpy()
-
-                                        planning_success_num = 1
-                                        for obj_id in range(pred_relations.shape[0]):
-                                            for relation_id in range(pred_relations.shape[1]):
-                                                if goal_relations[obj_id][relation_id] == 1:
-                                                    if pred_relations[obj_id][relation_id] < planning_threshold:
-                                                        planning_success_num = 0
-                                                elif goal_relations[obj_id][relation_id] == 0:
-                                                    if pred_relations[obj_id][relation_id] > 1 - planning_threshold:
-                                                        planning_success_num = 0
-
-                                        print('pred_relations', pred_relations)
-                                        print('goal_relations shape', goal_relations.shape)
-                                        print('goal_relations', goal_relations)
-                                        print('planning_success_num', planning_success_num)
-                                        node_pose_numpy = node_pose.detach().cpu().numpy()
-                                        change_id_leap = 0
-                                        if True: #for seq in range(len(min_action)):
-                                            this_seq_numpy = min_action[0].cpu().numpy()
-                                            change_id = np.argmax(this_seq_numpy[0][:self.num_nodes])
-                                                #print(change_id)
-                                            if change_id == 0:
-                                                change_id_leap = 1
-                                                node_pose_numpy[0][-3:] += this_seq_numpy[0][-3:]
-                                            #node_pose_numpy[0][3:6] += this_seq_numpy[0][-3:]
-                                            #     #if(this_seq_numpy[0])
-                                            # all_node_pose_list.append(node_pose_numpy)
-                                            # node_pose = torch.Tensor(node_pose_numpy)
-                                            # generate_edge_embed_list = self.generate_edge_embed(node_pose)
-                                        node_pose_numpy_goal = node_pose_goal.detach().cpu().numpy()
-                                        choose_list = [0,-1]
-                                        #print('node_pose', [node_pose_numpy[[0,-1]], node_pose_goal[[0,-1]]])
-                                       
-
-                                        
-                                        print(min_action)
-                                        #min_action_numpy
-                                        print(action_torch)
-                                        #print()
-                                        print(min_cost)
-                                        # if change_id_leap == 1:
-                                        #     goal_loss = loss_func(torch.stack(current_relations[:]), torch.stack(goal_relations[:]))
-                                        #     print(goal_loss)
-                                        #     if(goal_loss.detach().cpu().numpy() < 1e-3):
-                                        #         success_num += 1
-                                        min_action_numpy = min_action[0].cpu().numpy()
-                                        action_numpy = action_torch.cpu().numpy()
-
-                                        # for node_pose_iter in range(node_pose_numpy.shape[0]):
-                                        #     self.node_pose_list.append(node_pose_numpy[node_pose_iter])
-                                        # for action_iter in range(1):
-                                        #     self.action_list.append(min_action_numpy[action_iter])
-                                        # for goal_relation_i in range(goal_relation.shape[0]):
-                                        #     for goal_relation_j in range(goal_relation.shape[1]):
-                                        #         self.goal_relation_list.append(goal_relation[goal_relation_i][goal_relation_j])
-                                        self.node_pose_list.append(node_pose_numpy)
-                                        self.action_list.append(min_action_numpy)
-                                        self.goal_relation_list.append(goal_relations)
-                                        self.gt_pose_list.append(self.gt_pose[0])
-                                        self.gt_extents_range_list.append(self.gt_extents_range[0])
-                                        
-                                        
-                                        
-                                        
-
-                                        
-                                        # simplied version of planned action success rate for pushing task
-                                        success_num = 1
-                                        for action_i in range(min_action_numpy.shape[1] - 3):
-                                            if(min_action_numpy[0][action_i] != action_numpy[0][action_i]):
-                                                success_num = 0
-                                        if min_action_numpy[0][-2]*action_numpy[0][-2] < 0: #np.abs(min_action_numpy[0][3] - action_numpy[0][3]) >= 0.06 or np.abs(min_action_numpy[0][4] - action_numpy[0][4]) >= 0.06:
-                                            success_num = 0
-                                        
-                                    print(success_num)
-                                    print(success_num/total_num)                    
-                                elif self.all_classifier:
-                                    success_num = 0
-                                    total_num = 1
-                                    for test_iter in range(total_num):
-                                        print('enter')
-                                        plannning_sequence = 1
-                                        sample_sequence = 1
-                                        num_nodes = self.num_nodes
-                                        data = self.create_graph(self.num_nodes, self.node_inp_size, node_pose, self.edge_inp_size, x_tensor_dict['batch_all_obj_pair_relation'], action_torch)
-                                        data_next = self.create_graph(self.num_nodes, self.node_inp_size, node_pose_goal, self.edge_inp_size, x_tensor_dict_next['batch_all_obj_pair_relation'], action_torch)
-                                        batch = Batch.from_data_list([data]).to(device)
-                                        outs = self.classif_model(batch.x, batch.edge_index, batch.edge_attr, batch.batch, batch.action)
-                                        batch2 = Batch.from_data_list([data_next]).to(device)
-                                        outs_2 = self.classif_model(batch2.x, batch2.edge_index, batch2.edge_attr, batch2.batch, batch2.action)
-                                        
-                                        
-                                        min_cost = 1e5
-                                        loss_list = []
-                                        all_action_list = []
-                                        print('actual action', action)
-                                        for obj_mov in range(self.num_nodes):
-                                            print('mov obj', obj_mov)
-                                            action_selections = 500
-                                            action_mu = np.zeros((action_selections, 1, 2))
-                                            action_sigma = np.ones((action_selections, 1, 2))
-                                            for i_iter in range(5):
-                                                action_noise = (np.random.rand(action_selections, 1, 2) - 0.5) * 2 # change range to (-0.2, 0.2)
-                                                act = action_mu + action_noise*action_sigma
-                                                costs = []
-                                                for j in range(action_selections):
-                                                    action_numpy = np.zeros((num_nodes, 3))
-                                                    action_numpy[obj_mov][0] = act[j, 0, 0]
-                                                    action_numpy[obj_mov][1] = act[j, 0, 1]
-                                                    action_numpy[obj_mov][2] = 0 #np.random.uniform(-0.2,0.2)
-                                                    action = np.zeros((num_nodes, num_nodes + 3))
-                                                    for i in range(action.shape[0]):
-                                                        action[i][obj_mov] = 1
-                                                        action[i][-3:] = action_numpy[obj_mov]
-                                                    
-                                                    sample_action = torch.Tensor(action).to(device)
-                                                    
-                                                    # action_1 = np.zeros((num_nodes, 3 + num_nodes))
-                                                    # for i in range(action_1.shape[0]):
-                                                    #     action_1[i][obj_mov] = 1
-                                                    #     action_1[i][3:] = action_numpy[obj_mov]
-                                                    # sample_action = torch.Tensor(action_1)
-                                                    #sample_action = (torch.rand((num_nodes, node_inp_size)) - 0.5)*20
-                                                    # if(_ == 0):
-                                                    #     sample_action = action
-                                                    this_sequence = []
-                                                    this_sequence.append(sample_action)
-                                                    loss_func = nn.MSELoss()
-                                                    test_loss = 0
-                                                    current_latent = outs['current_embed']
-                                                    egde_latent = outs['edge_embed']
-                                                    #print('prev_embed, edge_embed, action', [current_latent, egde_latent, sample_action])
-                                                    for seq in range(len(this_sequence)):
-                                                        #print([current_latent, this_sequence[seq]])
-                                                        graph_node_action = torch.cat((current_latent, this_sequence[seq]), axis = 1)
-                                                        current_latent = self.classif_model.graph_dynamics(graph_node_action)
-                                                    for seq in range(len(this_sequence)):
-                                                        #print([current_latent, this_sequence[seq]])
-                                                        #edge_action = torch.stack([this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0]])
-                                                        edge_num = egde_latent.shape[0]
-                                                        edge_action_list = []
-                                                        for _ in range(edge_num):
-                                                            edge_action_list.append(this_sequence[seq][0])
-                                                        edge_action = torch.stack(edge_action_list)
-                                                        graph_edge_action = torch.cat((egde_latent, edge_action), axis = 1)
-                                                        egde_latent = self.classif_model.graph_edge_dynamics(graph_edge_action)
-                                                    #test_loss += loss_func(current_latent, outs_2['current_embed'])
-                                                    #print(egde_latent.shape)
-                                                    # print(current_latent)
-                                                    # print(egde_latent)
-                                                    outs_edge = self.classif_model.forward_decoder(current_latent, batch.edge_index, egde_latent, batch.batch, sample_action)
-                                                    
-                                                    
-                                                    
-                                                    if self.all_gt:
-                                                        test_loss += loss_func(x_tensor_dict_next['batch_all_obj_pair_relation'], outs_edge['pred_edge'][:, :])
-                                                    elif self.all_classifier:
-                                                        
-                                                        horizon_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,1]
-                                                        right_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,2]
-                                                        left_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,3]
-                                                        vertical_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,4]
-                                                        front_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,5]
-                                                        behind_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,6]
-                                                        if self.stacking:
-                                                            stack_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,7]
-                                                            top_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,8]
-                                                            below_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,9]
-
-                                                        
-                                                        
-                                                        
-                                                        
-                                                        test_loss += self.CE_loss(outs_edge['pred_edge_classifier'][0], right_tensor_dict) + \
-                                                                self.CE_loss(outs_edge['pred_edge_classifier'][1], left_tensor_dict) + \
-                                                                self.CE_loss(outs_edge['pred_edge_classifier'][2], front_tensor_dict) + \
-                                                                self.CE_loss(outs_edge['pred_edge_classifier'][3], behind_tensor_dict) + \
-                                                                self.CE_loss(outs_edge['pred_edge_classifier'][4], stack_tensor_dict) + \
-                                                                self.CE_loss(outs_edge['pred_edge_classifier'][5], top_tensor_dict) + \
-                                                                self.CE_loss(outs_edge['pred_edge_classifier'][6], below_tensor_dict)
-                                                    else:
-                                                        test_loss += loss_func(x_tensor_dict_next['batch_all_obj_pair_relation'], outs_edge['pred_edge'][:, :])
-                                                    #test_loss += loss_func(goal_relation, outs_edge['pred_edge'])
-                                                    #test_loss += loss_func(egde_latent, outs_2['edge_embed'])
-                                                    #print(outs_edge['pred_edge'].shape)
-                                                    # print(sample_action)
-                                                    # print(test_loss)
-                                                    #sample_list.append(outs_edge['pred_edge'])
-                                                    #loss_list.append(test_loss)
-                                                    costs.append(test_loss.detach().cpu().numpy())
-                                                    # if(test_loss.detach().cpu().numpy() < min_cost):
-                                                    #     min_action = this_sequence
-                                                    #     min_cost = test_loss.detach().cpu().numpy()
-                                            
-                                                    #     costs.append(test_loss)
-
-                                                index = np.argsort(costs)
-                                                elite = act[index,:,:]
-                                                elite = elite[:3, :, :]
-                                                    # print('elite')
-                                                    # print(elite)
-                                                act_mu = elite.mean(axis = 0)
-                                                act_sigma = elite.std(axis = 0)
-                                                print([act_mu, act_sigma])
-                                                # if(act_sigma[0][0] < 0.1 and act_sigma[0][1] < 0.1):
-                                                #     break
-                                                #print(act_sigma)
-                                            # print('find_actions')
-                                            # print(act_mu)
-                                            chosen_action = act_mu
-                                            action_numpy = np.zeros((num_nodes, 3))
-                                            action_numpy[obj_mov][0] = chosen_action[0, 0]
-                                            action_numpy[obj_mov][1] = chosen_action[0, 1]
-                                            action_numpy[obj_mov][2] = 0 #np.random.uniform(-0.2,0.2)
-                                            action = np.zeros((num_nodes, num_nodes + 3))
-                                            for i in range(action.shape[0]):
-                                                action[i][obj_mov] = 1
-                                                action[i][-3:] = action_numpy[obj_mov]
-                                                    
-                                            sample_action = torch.Tensor(action).to(device)
-                                            # if(_ == 0):
-                                            #     sample_action = action
-                                            this_sequence = []
-                                            this_sequence.append(sample_action)
-                                            if True:
-                                                loss_func = nn.MSELoss()
-                                                test_loss = 0
-                                                current_latent = outs['current_embed']
-                                                egde_latent = outs['edge_embed']
-                                                #print('prev_embed, edge_embed, action', [current_latent, egde_latent, sample_action])
-                                                for seq in range(len(this_sequence)):
-                                                    #print([current_latent, this_sequence[seq]])
-                                                    graph_node_action = torch.cat((current_latent, this_sequence[seq]), axis = 1)
-                                                    current_latent = self.classif_model.graph_dynamics(graph_node_action)
-                                                for seq in range(len(this_sequence)):
-                                                    #print([current_latent, this_sequence[seq]])
-                                                    #edge_action = torch.stack([this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0]])
-                                                    edge_num = egde_latent.shape[0]
-                                                    edge_action_list = []
-                                                    for _ in range(edge_num):
-                                                        edge_action_list.append(this_sequence[seq][0])
-                                                    edge_action = torch.stack(edge_action_list)
-                                                    graph_edge_action = torch.cat((egde_latent, edge_action), axis = 1)
-                                                    egde_latent = self.classif_model.graph_edge_dynamics(graph_edge_action)
-                                                #test_loss += loss_func(current_latent, outs_2['current_embed'])
-                                                #print(egde_latent.shape)
-                                                # print(current_latent)
-                                                # print(egde_latent)
-                                                outs_edge = self.classif_model.forward_decoder(current_latent, batch.edge_index, egde_latent, batch.batch, sample_action)
-                                                
-                                                
-                                                
-                                                if self.all_gt:
-                                                    test_loss += loss_func(x_tensor_dict_next['batch_all_obj_pair_relation'], outs_edge['pred_edge'][:, :])
-                                                elif self.all_classifier:
-                                                    horizon_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,1]
-                                                    right_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,2]
-                                                    left_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,3]
-                                                    vertical_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,4]
-                                                    front_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,5]
-                                                    behind_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,6]
-                                                    if self.stacking:
-                                                        stack_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,7]
-                                                        top_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,8]
-                                                        below_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,9]
-
-                                                        
-                                                        
-                                                        
-                                                    print(outs_edge['pred_edge_classifier'])
-                    
-                                                    test_loss += self.CE_loss(outs_edge['pred_edge_classifier'][0], right_tensor_dict) + \
-                                                            self.CE_loss(outs_edge['pred_edge_classifier'][1], left_tensor_dict) + \
-                                                            self.CE_loss(outs_edge['pred_edge_classifier'][2], front_tensor_dict) + \
-                                                            self.CE_loss(outs_edge['pred_edge_classifier'][3], behind_tensor_dict) + \
-                                                            self.CE_loss(outs_edge['pred_edge_classifier'][4], stack_tensor_dict) + \
-                                                            self.CE_loss(outs_edge['pred_edge_classifier'][5], top_tensor_dict) + \
-                                                            self.CE_loss(outs_edge['pred_edge_classifier'][6], below_tensor_dict)
-                                                else:
-                                                    test_loss += loss_func(x_tensor_dict_next['batch_all_obj_pair_relation'], outs_edge['pred_edge'][:, :])
-                                                #test_loss += loss_func(torch.stack(scene_emb_list_next[0][:]), outs_edge['pred_edge'][:, :])
-                                                #test_loss += loss_func(goal_relation, outs_edge['pred_edge'])
-                                                #test_loss += loss_func(egde_latent, outs_2['edge_embed'])
-                                                #print(outs_edge['pred_edge'].shape)
-                                                # print(sample_action)
-                                                # print(test_loss)
-                                                #sample_list.append(outs_edge['pred_edge'])
-                                                loss_list.append(test_loss)
-                                                if(test_loss.detach().cpu().numpy() < min_cost):
-                                                    min_prediction = outs_edge['pred_edge'][:, :]
-                                                    min_action = this_sequence
-                                                    min_pose = outs_edge['pred'][:, :]
-                                                    min_cost = test_loss.detach().cpu().numpy()
-
-                                        
-                                        print('initial_edge_embed', x_tensor_dict['batch_all_obj_pair_relation'][0][:])
-                                        print('min_prediction', min_prediction)
-                                        print('min node pose prediction', min_pose)
-                                        node_pose_numpy = node_pose.cpu().numpy()
-                                        change_id_leap = 0
-                                        if True: #for seq in range(len(min_action)):
-                                            this_seq_numpy = min_action[0].cpu().numpy()
-                                            change_id = np.argmax(this_seq_numpy[0][:self.num_nodes])
-                                                #print(change_id)
-                                            if change_id == 0:
-                                                change_id_leap = 1
-                                                node_pose_numpy[0][-3:] += this_seq_numpy[0][-3:]
-                                            #node_pose_numpy[0][3:6] += this_seq_numpy[0][-3:]
-                                            #     #if(this_seq_numpy[0])
-                                            # all_node_pose_list.append(node_pose_numpy)
-                                            # node_pose = torch.Tensor(node_pose_numpy)
-                                            # generate_edge_embed_list = self.generate_edge_embed(node_pose)
-                                        node_pose_numpy_goal = node_pose_goal.cpu().numpy()
-                                        choose_list = [0,-1]
-                                        print('node_pose', [node_pose_numpy[[0,-1]], node_pose_goal[[0,-1]]])
-                                        
-                                        
-                                        print(min_action)
-                                        print(action_torch)
-                                        #print()
-                                        print(min_cost)
-                                        # if change_id_leap == 1:
-                                        #     goal_loss = loss_func(torch.stack(current_relations[:]), torch.stack(goal_relations[:]))
-                                        #     print(goal_loss)
-                                        #     if(goal_loss.detach().cpu().numpy() < 1e-3):
-                                        #         success_num += 1
-                                        min_action_numpy = min_action[0].cpu().numpy()
-                                        action_numpy = action_torch.cpu().numpy()
-                                        # success_num = 1
-                                        # for action_i in range(min_action_numpy.shape[1] - 3):
-                                        #     if(min_action_numpy[0][action_i] != action_numpy[0][action_i]):
-                                        #         success_num = 0
-                                        # if np.abs(min_action_numpy[0][3] - action_numpy[0][3]) >= 0.06 or np.abs(min_action_numpy[0][4] - action_numpy[0][4]) >= 0.06:
-                                        #     success_num = 0
-                                        #print(node_pose)
-
-                                        #print(node_pose_goal)
-                                        #print(edge_feature_2)
-                                        #print(generate_edge_embed_list)
-                                        #print(all_action_sequence_list)
-                                        #print(all_node_pose_list)
-                                        #print(loss_func(edge_feature_2, torch.stack(generate_edge_embed_list)))
-                                        # goal_loss = loss_func(torch.stack(scene_emb_list_next[0][:12]), torch.stack(generate_edge_embed_list))
-                                        # print(goal_loss)
-                                        # if(goal_loss.detach().cpu().numpy() < 1e-3):
-                                        #     success_num += 1
-                                        # else:
-                                        #     print(loss_list)
-                                        #     print(sample_list)
-                                        # print(loss_list)
-                                        # print(sample_list)
-                                        #print(self.dynamics_loss(node_pose[:,:6], node_pose_goal[:,:6]))
-                                    print(success_num)
-                                    print(success_num/total_num)                    
-                                elif self.all_gt:
-                                    success_num = 0
-                                    total_num = 1
-                                    for test_iter in range(total_num):
-                                        print('enter')
-                                        plannning_sequence = 1
-                                        sample_sequence = 1
-                                        num_nodes = self.num_nodes
-                                        data = self.create_graph(self.num_nodes, self.node_inp_size, node_pose, self.edge_inp_size, x_tensor_dict['batch_all_obj_pair_relation'], action_torch)
-                                        data_next = self.create_graph(self.num_nodes, self.node_inp_size, node_pose_goal, self.edge_inp_size, x_tensor_dict_next['batch_all_obj_pair_relation'], action_torch)
-                                        batch = Batch.from_data_list([data]).to(device)
-                                        outs = self.classif_model(batch.x, batch.edge_index, batch.edge_attr, batch.batch, batch.action)
-                                        batch2 = Batch.from_data_list([data_next]).to(device)
-                                        outs_2 = self.classif_model(batch2.x, batch2.edge_index, batch2.edge_attr, batch2.batch, batch2.action)
-                                        
-                                        
-                                        min_cost = 1e5
-                                        loss_list = []
-                                        all_action_list = []
-                                        print('actual action', action)
-                                        for obj_mov in range(self.num_nodes):
-                                            print('mov obj', obj_mov)
-                                            action_selections = 500
-                                            action_mu = np.zeros((action_selections, 1, 2))
-                                            action_sigma = np.ones((action_selections, 1, 2))
-                                            for i_iter in range(5):
-                                                action_noise = (np.random.rand(action_selections, 1, 2) - 0.5) * 2 # change range to (-0.2, 0.2)
-                                                act = action_mu + action_noise*action_sigma
-                                                costs = []
-                                                for j in range(action_selections):
-                                                    action_numpy = np.zeros((num_nodes, 3))
-                                                    action_numpy[obj_mov][0] = act[j, 0, 0]
-                                                    action_numpy[obj_mov][1] = act[j, 0, 1]
-                                                    action_numpy[obj_mov][2] = 0 #np.random.uniform(-0.2,0.2)
-                                                    action = np.zeros((num_nodes, num_nodes + 3))
-                                                    for i in range(action.shape[0]):
-                                                        action[i][obj_mov] = 1
-                                                        action[i][-3:] = action_numpy[obj_mov]
-                                                    
-                                                    sample_action = torch.Tensor(action).to(device)
-                                                    
-                                                    # action_1 = np.zeros((num_nodes, 3 + num_nodes))
-                                                    # for i in range(action_1.shape[0]):
-                                                    #     action_1[i][obj_mov] = 1
-                                                    #     action_1[i][3:] = action_numpy[obj_mov]
-                                                    # sample_action = torch.Tensor(action_1)
-                                                    #sample_action = (torch.rand((num_nodes, node_inp_size)) - 0.5)*20
-                                                    # if(_ == 0):
-                                                    #     sample_action = action
-                                                    this_sequence = []
-                                                    this_sequence.append(sample_action)
-                                                    loss_func = nn.MSELoss()
-                                                    test_loss = 0
-                                                    current_latent = outs['current_embed']
-                                                    egde_latent = outs['edge_embed']
-                                                    #print('prev_embed, edge_embed, action', [current_latent, egde_latent, sample_action])
-                                                    for seq in range(len(this_sequence)):
-                                                        #print([current_latent, this_sequence[seq]])
-                                                        graph_node_action = torch.cat((current_latent, this_sequence[seq]), axis = 1)
-                                                        current_latent = self.classif_model.graph_dynamics(graph_node_action)
-                                                    for seq in range(len(this_sequence)):
-                                                        #print([current_latent, this_sequence[seq]])
-                                                        #edge_action = torch.stack([this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0]])
-                                                        edge_num = egde_latent.shape[0]
-                                                        edge_action_list = []
-                                                        for _ in range(edge_num):
-                                                            edge_action_list.append(this_sequence[seq][0])
-                                                        edge_action = torch.stack(edge_action_list)
-                                                        graph_edge_action = torch.cat((egde_latent, edge_action), axis = 1)
-                                                        egde_latent = self.classif_model.graph_edge_dynamics(graph_edge_action)
-                                                    #test_loss += loss_func(current_latent, outs_2['current_embed'])
-                                                    #print(egde_latent.shape)
-                                                    # print(current_latent)
-                                                    # print(egde_latent)
-                                                    outs_edge = self.classif_model.forward_decoder(current_latent, batch.edge_index, egde_latent, batch.batch, sample_action)
-                                                    
-                                                    
-                                                    
-                                                    if self.all_gt_sigmoid:
-                                                        test_loss += self.bce_loss(outs_edge['pred_sigmoid'][:, :], x_tensor_dict_next['batch_all_obj_pair_relation'])
-                                                    elif self.all_gt:
-                                                        test_loss += loss_func(x_tensor_dict_next['batch_all_obj_pair_relation'], outs_edge['pred_edge'][:, :])
-                                                    elif self.all_classifier:
-                                                        horizon_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,1]
-                                                        right_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,2]
-                                                        left_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,3]
-                                                        vertical_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,4]
-                                                        front_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,5]
-                                                        behind_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,6]
-                                                        if self.stacking:
-                                                            stack_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,7]
-                                                            top_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,8]
-                                                            below_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,9]
-
-                                                        
-                                                        
-                                                        
-                                                        test_loss += self.CE_loss(outs['pred_edge_classifier'][0], right_tensor_dict) + \
-                                                                self.CE_loss(outs['pred_edge_classifier'][1], left_tensor_dict) + \
-                                                                self.CE_loss(outs['pred_edge_classifier'][2], front_tensor_dict) + \
-                                                                self.CE_loss(outs['pred_edge_classifier'][3], behind_tensor_dict) + \
-                                                                self.CE_loss(outs['pred_edge_classifier'][4], stack_tensor_dict) + \
-                                                                self.CE_loss(outs['pred_edge_classifier'][5], top_tensor_dict) + \
-                                                                self.CE_loss(outs['pred_edge_classifier'][6], below_tensor_dict)
-                                                    else:
-                                                        test_loss += loss_func(x_tensor_dict_next['batch_all_obj_pair_relation'], outs_edge['pred_edge'][:, :])
-                                                    #test_loss += loss_func(goal_relation, outs_edge['pred_edge'])
-                                                    #test_loss += loss_func(egde_latent, outs_2['edge_embed'])
-                                                    #print(outs_edge['pred_edge'].shape)
-                                                    # print(sample_action)
-                                                    # print(test_loss)
-                                                    #sample_list.append(outs_edge['pred_edge'])
-                                                    #loss_list.append(test_loss)
-                                                    costs.append(test_loss.detach().cpu().numpy())
-                                                    # if(test_loss.detach().cpu().numpy() < min_cost):
-                                                    #     min_action = this_sequence
-                                                    #     min_cost = test_loss.detach().cpu().numpy()
-                                            
-                                                    #     costs.append(test_loss)
-
-                                                index = np.argsort(costs)
-                                                elite = act[index,:,:]
-                                                elite = elite[:3, :, :]
-                                                    # print('elite')
-                                                    # print(elite)
-                                                act_mu = elite.mean(axis = 0)
-                                                act_sigma = elite.std(axis = 0)
-                                                print([act_mu, act_sigma])
-                                                # if(act_sigma[0][0] < 0.1 and act_sigma[0][1] < 0.1):
-                                                #     break
-                                                #print(act_sigma)
-                                            # print('find_actions')
-                                            # print(act_mu)
-                                            chosen_action = act_mu
-                                            action_numpy = np.zeros((num_nodes, 3))
-                                            action_numpy[obj_mov][0] = chosen_action[0, 0]
-                                            action_numpy[obj_mov][1] = chosen_action[0, 1]
-                                            action_numpy[obj_mov][2] = 0 #np.random.uniform(-0.2,0.2)
-                                            action = np.zeros((num_nodes, num_nodes + 3))
-                                            for i in range(action.shape[0]):
-                                                action[i][obj_mov] = 1
-                                                action[i][-3:] = action_numpy[obj_mov]
-                                                    
-                                            sample_action = torch.Tensor(action).to(device)
-                                            # if(_ == 0):
-                                            #     sample_action = action
-                                            this_sequence = []
-                                            this_sequence.append(sample_action)
-                                            if True:
-                                                loss_func = nn.MSELoss()
-                                                test_loss = 0
-                                                current_latent = outs['current_embed']
-                                                egde_latent = outs['edge_embed']
-                                                #print('prev_embed, edge_embed, action', [current_latent, egde_latent, sample_action])
-                                                for seq in range(len(this_sequence)):
-                                                    #print([current_latent, this_sequence[seq]])
-                                                    graph_node_action = torch.cat((current_latent, this_sequence[seq]), axis = 1)
-                                                    current_latent = self.classif_model.graph_dynamics(graph_node_action)
-                                                for seq in range(len(this_sequence)):
-                                                    #print([current_latent, this_sequence[seq]])
-                                                    #edge_action = torch.stack([this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0]])
-                                                    edge_num = egde_latent.shape[0]
-                                                    edge_action_list = []
-                                                    for _ in range(edge_num):
-                                                        edge_action_list.append(this_sequence[seq][0])
-                                                    edge_action = torch.stack(edge_action_list)
-                                                    graph_edge_action = torch.cat((egde_latent, edge_action), axis = 1)
-                                                    egde_latent = self.classif_model.graph_edge_dynamics(graph_edge_action)
-                                                #test_loss += loss_func(current_latent, outs_2['current_embed'])
-                                                #print(egde_latent.shape)
-                                                # print(current_latent)
-                                                # print(egde_latent)
-                                                outs_edge = self.classif_model.forward_decoder(current_latent, batch.edge_index, egde_latent, batch.batch, sample_action)
-                                                
-                                                
-                                                
-                                                if self.all_gt_sigmoid:
-                                                    test_loss += self.bce_loss(outs_edge['pred_sigmoid'][:, :], x_tensor_dict_next['batch_all_obj_pair_relation'])
-                                                elif self.all_gt:
-                                                    test_loss += loss_func(x_tensor_dict_next['batch_all_obj_pair_relation'], outs_edge['pred_edge'][:, :])
-                                                elif self.all_classifier:
-                                                    horizon_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,1]
-                                                    right_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,2]
-                                                    left_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,3]
-                                                    vertical_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,4]
-                                                    front_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,5]
-                                                    behind_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,6]
-                                                    if self.stacking:
-                                                        stack_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,7]
-                                                        top_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,8]
-                                                        below_tensor_dict = x_tensor_dict_next['batch_all_obj_pair_relation'][:,9]
-
-                                                        
-                                                        
-                                                        
-                                                    test_loss += self.CE_loss(outs['pred_edge_classifier'][0], right_tensor_dict) + \
-                                                            self.CE_loss(outs['pred_edge_classifier'][1], left_tensor_dict) + \
-                                                            self.CE_loss(outs['pred_edge_classifier'][2], front_tensor_dict) + \
-                                                            self.CE_loss(outs['pred_edge_classifier'][3], behind_tensor_dict) + \
-                                                            self.CE_loss(outs['pred_edge_classifier'][4], stack_tensor_dict) + \
-                                                            self.CE_loss(outs['pred_edge_classifier'][5], top_tensor_dict) + \
-                                                            self.CE_loss(outs['pred_edge_classifier'][6], below_tensor_dict)
-                                                else:
-                                                    test_loss += loss_func(x_tensor_dict_next['batch_all_obj_pair_relation'], outs_edge['pred_edge'][:, :])
-                                                #test_loss += loss_func(torch.stack(scene_emb_list_next[0][:]), outs_edge['pred_edge'][:, :])
-                                                #test_loss += loss_func(goal_relation, outs_edge['pred_edge'])
-                                                #test_loss += loss_func(egde_latent, outs_2['edge_embed'])
-                                                #print(outs_edge['pred_edge'].shape)
-                                                # print(sample_action)
-                                                # print(test_loss)
-                                                #sample_list.append(outs_edge['pred_edge'])
-                                                loss_list.append(test_loss)
-                                                if(test_loss.detach().cpu().numpy() < min_cost):
-                                                    min_prediction = outs_edge['pred_edge'][:, :]
-                                                    min_action = this_sequence
-                                                    min_pose = outs_edge['pred'][:, :]
-                                                    min_cost = test_loss.detach().cpu().numpy()
-
-                                        
-                                        print('initial_edge_embed', x_tensor_dict['batch_all_obj_pair_relation'][0][:])
-                                        print('min_prediction', min_prediction)
-                                        print('min node pose prediction', min_pose)
-                                        node_pose_numpy = node_pose.cpu().numpy()
-                                        change_id_leap = 0
-                                        if True: #for seq in range(len(min_action)):
-                                            this_seq_numpy = min_action[0].cpu().numpy()
-                                            change_id = np.argmax(this_seq_numpy[0][:self.num_nodes])
-                                                #print(change_id)
-                                            if change_id == 0:
-                                                change_id_leap = 1
-                                                node_pose_numpy[0][-3:] += this_seq_numpy[0][-3:]
-                                            #node_pose_numpy[0][3:6] += this_seq_numpy[0][-3:]
-                                            #     #if(this_seq_numpy[0])
-                                            # all_node_pose_list.append(node_pose_numpy)
-                                            # node_pose = torch.Tensor(node_pose_numpy)
-                                            # generate_edge_embed_list = self.generate_edge_embed(node_pose)
-                                        node_pose_numpy_goal = node_pose_goal.cpu().numpy()
-                                        choose_list = [0,-1]
-                                        print('node_pose', [node_pose_numpy[[0,-1]], node_pose_goal[[0,-1]]])
-                                        
-
-                                        
-                                        print(min_action)
-                                        #min_action_numpy
-                                        print(action_torch)
-                                        #print()
-                                        print(min_cost)
-                                        # if change_id_leap == 1:
-                                        #     goal_loss = loss_func(torch.stack(current_relations[:]), torch.stack(goal_relations[:]))
-                                        #     print(goal_loss)
-                                        #     if(goal_loss.detach().cpu().numpy() < 1e-3):
-                                        #         success_num += 1
-                                        min_action_numpy = min_action[0].cpu().numpy()
-                                        action_numpy = action_torch.cpu().numpy()
-
-                                        for node_pose_iter in range(node_pose_numpy.shape[0]):
-                                            self.node_pose_list.append(node_pose_numpy[node_pose_iter])
-                                        for action_iter in range(1):
-                                            self.action_list.append(min_action_numpy[action_iter])
-                                        # success_num = 1
-                                        # for action_i in range(min_action_numpy.shape[1] - 3):
-                                        #     if(min_action_numpy[0][action_i] != action_numpy[0][action_i]):
-                                        #         success_num = 0
-                                        # if np.abs(min_action_numpy[0][3] - action_numpy[0][3]) >= 0.06 or np.abs(min_action_numpy[0][4] - action_numpy[0][4]) >= 0.06:
-                                        #     success_num = 0
-                                        #print(node_pose)
-
-                                        #print(node_pose_goal)
-                                        #print(edge_feature_2)
-                                        #print(generate_edge_embed_list)
-                                        #print(all_action_sequence_list)
-                                        #print(all_node_pose_list)
-                                        #print(loss_func(edge_feature_2, torch.stack(generate_edge_embed_list)))
-                                        # goal_loss = loss_func(torch.stack(scene_emb_list_next[0][:12]), torch.stack(generate_edge_embed_list))
-                                        # print(goal_loss)
-                                        # if(goal_loss.detach().cpu().numpy() < 1e-3):
-                                        #     success_num += 1
-                                        # else:
-                                        #     print(loss_list)
-                                        #     print(sample_list)
-                                        # print(loss_list)
-                                        # print(sample_list)
-                                        #print(self.dynamics_loss(node_pose[:,:6], node_pose_goal[:,:6]))
-                                        
-                                    print(success_num)
-                                    print(success_num/total_num)                    
+                            if self.set_max:
+                                action = np.zeros((num_nodes, self.max_objects + 3))
                             else:
-                                success_num = 0
-                                total_num = 1
-                                for test_iter in range(total_num):
-                                    print('enter')
-                                    plannning_sequence = 1
-                                    sample_sequence = 1
-                                    num_nodes = self.num_nodes
-                                    data = self.create_graph(self.num_nodes, self.node_inp_size, node_pose, self.edge_inp_size, torch.stack(scene_emb_list[0]), action_torch)
-                                    data_next = self.create_graph(self.num_nodes, self.node_inp_size, node_pose_goal, self.edge_inp_size, torch.stack(scene_emb_list_next[0]), action_torch)
-                                    batch = Batch.from_data_list([data]).to(device)
-                                    outs = self.classif_model(batch.x, batch.edge_index, batch.edge_attr, batch.batch, batch.action)
-                                    batch2 = Batch.from_data_list([data_next]).to(device)
-                                    outs_2 = self.classif_model(batch2.x, batch2.edge_index, batch2.edge_attr, batch2.batch, batch2.action)
-                                    
-                                    min_cost = 1e5
-                                    all_action_sequence_list = []
-                                    all_node_pose_list = []
-                                    all_node_pose_list.append(node_pose.cpu().numpy())
-                                    #print('init node pose', node_pose)
-                                    for test_seq in range(plannning_sequence):
-                                        loss_list = []
-                                        sample_list = []
-                                        for _ in range(200):
-                                            this_sequence = []
-                                            for seq in range(sample_sequence):
-                                                obj_mov = np.random.randint(num_nodes)
-                                                action_numpy = np.zeros((num_nodes, 3))
-                                                action_numpy[obj_mov][0] = np.random.uniform(-1,1)
-                                                action_numpy[obj_mov][1] = np.random.uniform(-1,1)
-                                                # z_choice_list = [0,0.10,0.18]
-                                                # action_numpy[obj_mov][2] = z_choice_list[np.random.randint(len(z_choice_list))]
-                                                action_1 = np.zeros((num_nodes, 3 + num_nodes))
-                                                for i in range(action_1.shape[0]):
-                                                    action_1[i][obj_mov] = 1
-                                                    action_1[i][3:] = action_numpy[obj_mov]
-                                                sample_action = torch.Tensor(action_1)
-                                                sample_action = sample_action.to(device)
-                                                if _ == 0:
-                                                    sample_action = action_torch
-                                                this_sequence.append(sample_action)
-                                            loss_func = nn.MSELoss()
-                                            test_loss = 0
-                                            current_latent = outs['current_embed']
-                                            egde_latent = outs['edge_embed']
-                                            #print('prev_embed, edge_embed, action', [current_latent, egde_latent, sample_action])
-                                            for seq in range(len(this_sequence)):
-                                                #print([current_latent, this_sequence[seq]])
-                                                graph_node_action = torch.cat((current_latent, this_sequence[seq]), axis = 1)
-                                                current_latent = self.classif_model.graph_dynamics(graph_node_action)
-                                            for seq in range(len(this_sequence)):
-                                                #print([current_latent, this_sequence[seq]])
-                                                edge_action = torch.stack([this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0]])
-                                                graph_edge_action = torch.cat((egde_latent, edge_action), axis = 1)
-                                                egde_latent = self.classif_model.graph_edge_dynamics(graph_edge_action)
-                                            #test_loss += loss_func(current_latent, outs_2['current_embed'])
-                                            #print(egde_latent.shape)
-                                            # print(current_latent)
-                                            # print(egde_latent)
-                                            outs_edge = self.classif_model.forward_decoder(current_latent, batch.edge_index, egde_latent, batch.batch, sample_action)
-                                            
-                                            test_loss = loss_func(torch.stack(scene_emb_list_next[0][:]), outs_edge['pred_edge'][:])
-                                            #test_loss += loss_func(egde_latent, outs_2['edge_embed'])
-                                            #print(outs_edge['pred_edge'].shape)
-                                            # print(sample_action)
-                                            # print(test_loss)
-                                            sample_list.append(outs_edge['pred_edge'])
-                                            loss_list.append(test_loss)
-                                            if(test_loss.detach().cpu().numpy() < min_cost):
-                                                min_action = this_sequence
-                                                min_cost = test_loss.detach().cpu().numpy()
-                                        #print(loss_list)
-                                        node_pose_numpy = node_pose.cpu().numpy()
-                                        if True: #for seq in range(len(min_action)):
-                                            this_seq_numpy = min_action[0].cpu().numpy()
-                                            all_action_sequence_list.append(this_seq_numpy[0])
-                                            #print(this_seq_numpy[0][:3])
-                                            change_id = np.argmax(this_seq_numpy[0][:3])
-                                            #print(change_id)
-                                            node_pose_numpy[change_id][3:6] += this_seq_numpy[0][3:]
-                                            #if(this_seq_numpy[0])
-                                            all_node_pose_list.append(node_pose_numpy)
-                                            node_pose = torch.Tensor(node_pose_numpy)
-                                            generate_edge_embed_list = self.generate_edge_embed(node_pose)
-                                            #print(generate_edge_embed_list)
-                                            # data = self.create_graph(num_nodes, self.node_inp_size, node_pose, self.edge_inp_size, torch.stack(generate_edge_embed_list), min_action[0])
-                                            # batch = Batch.from_data_list([data]).to(device)
-                                            # outs = self.classif_model(batch.x, batch.edge_index, batch.edge_attr, batch.batch, batch.action)
-                                    print(min_action)
-                                    print(action)
-                                    #print()
-                                    print(min_cost)
-                                    min_action_numpy = min_action[0].cpu().numpy()
-                                    action_numpy = action.cpu().numpy()
-                                    success_num = 1
-                                    for action_i in range(min_action_numpy.shape[1] - 3):
-                                        if(min_action_numpy[0][action_i] != action_numpy[0][0][action_i]):
-                                            success_num = 0
-                                    if np.abs(min_action_numpy[0][3] - action_numpy[0][0][3]) >= 0.06 or np.abs(min_action_numpy[0][4] - action_numpy[0][0][4]) >= 0.06:
-                                        success_num = 0
-                                    #print(node_pose)
+                                action = np.zeros((num_nodes, num_nodes + 3))
+                            for i in range(action.shape[0]):
+                                action[i][obj_mov] = 1
+                                action[i][-3:] = action_numpy[obj_mov]
+                            
+                            sample_action = torch.Tensor(action).to(device)
+                            
+                            # action_1 = np.zeros((num_nodes, 3 + num_nodes))
+                            # for i in range(action_1.shape[0]):
+                            #     action_1[i][obj_mov] = 1
+                            #     action_1[i][3:] = action_numpy[obj_mov]
+                            # sample_action = torch.Tensor(action_1)
+                            #sample_action = (torch.rand((num_nodes, node_inp_size)) - 0.5)*20
+                            # if(_ == 0):
+                            #     sample_action = action
+                            this_sequence = []
+                            this_sequence.append(sample_action)
+                            loss_func = nn.MSELoss()
+                            test_loss = 0
+                            current_latent = outs['current_embed']
+                            egde_latent = outs['edge_embed']
+                            #print('prev_embed, edge_embed, action', [current_latent, egde_latent, sample_action])
+                            for seq in range(len(this_sequence)):
+                                #print([current_latent, this_sequence[seq]])
+                                if self.use_graph_dynamics:
+                                    current_action = self.classif_model.action_emb(this_sequence[seq])
+                                else:
+                                    current_action = self.classif_model.action_emb(this_sequence[seq])
 
-                                    #print(node_pose_goal)
-                                    #print(edge_feature_2)
-                                    #print(generate_edge_embed_list)
-                                    #print(all_action_sequence_list)
-                                    #print(all_node_pose_list)
-                                    #print(loss_func(edge_feature_2, torch.stack(generate_edge_embed_list)))
-                                    # goal_loss = loss_func(torch.stack(scene_emb_list_next[0][:12]), torch.stack(generate_edge_embed_list))
-                                    # print(goal_loss)
-                                    # if(goal_loss.detach().cpu().numpy() < 1e-3):
-                                    #     success_num += 1
-                                    # else:
-                                    #     print(loss_list)
-                                    #     print(sample_list)
-                                    # print(loss_list)
-                                    # print(sample_list)
-                                    #print(self.dynamics_loss(node_pose[:,:6], node_pose_goal[:,:6]))
-                                print(success_num)
-                                print(success_num/total_num)
+                                graph_node_action = torch.cat((current_latent, current_action), axis = 1)
+                                current_latent = self.classif_model.graph_dynamics(graph_node_action)
+                            for seq in range(len(this_sequence)):
+                                #print([current_latent, this_sequence[seq]])
+                                #edge_action = torch.stack([this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0]])
+                                edge_num = egde_latent.shape[0]
+                                edge_action_list = []
+                                if self.use_graph_dynamics:
+                                    current_action = self.classif_model.action_emb(this_sequence[seq])
+                                else:
+                                    current_action = self.classif_model.action_emb(this_sequence[seq])
+                                for _ in range(edge_num):
+                                    edge_action_list.append(current_action[0])
+                                edge_action = torch.stack(edge_action_list)
+                                graph_edge_action = torch.cat((egde_latent, edge_action), axis = 1)
+                                egde_latent = self.classif_model.graph_edge_dynamics(graph_edge_action)
+                            #test_loss += loss_func(current_latent, outs_2['current_embed'])
+                            #print(egde_latent.shape)
+                            # print(current_latent)
+                            # print(egde_latent)
+                            # outs_edge = self.classif_model.forward_decoder(current_latent, batch.edge_index, egde_latent, batch.batch, sample_action)
 
-                        else:
-                            plannning_sequence = 2
-                            sample_sequence = 1
-                            print('init_node_pose', node_pose)
-                            data = self.create_graph(self.num_nodes, self.node_inp_size, node_pose, self.edge_inp_size, torch.stack(scene_emb_list[0]), action_torch)
-                            data_next = self.create_graph(self.num_nodes, self.node_inp_size, node_pose_goal, self.edge_inp_size, torch.stack(scene_emb_list_next[0]), action_torch)
-                            batch = Batch.from_data_list([data]).to(device)
-                            outs = self.classif_model(batch.x, batch.edge_index, batch.edge_attr, batch.batch, batch.action)
-                            batch2 = Batch.from_data_list([data_next]).to(device)
-                            outs_2 = self.classif_model(batch2.x, batch2.edge_index, batch2.edge_attr, batch2.batch, batch2.action)
-                            min_cost = 1e5
-                            all_action_sequence_list = []
-                            all_node_pose_list = []
-                            all_node_pose_list.append(node_pose.cpu().numpy())
-                            for test_seq in range(plannning_sequence):
-                                loss_list = []
-                                for _ in range(1000):
-                                    this_sequence = []
-                                    for seq in range(sample_sequence):
-                                        obj_mov = np.random.randint(self.num_nodes)
-                                        action_numpy = np.zeros((self.num_nodes, 3))
-                                        action_numpy[obj_mov][0] = np.random.uniform(-0.3,0.3)
-                                        action_numpy[obj_mov][1] = np.random.uniform(-0.6,0.6)
-                                        z_choice_list = [0,0.10,0.18]
-                                        action_numpy[obj_mov][2] = z_choice_list[np.random.randint(len(z_choice_list))]
-                                        action_1 = np.zeros((self.num_nodes, 3 + self.num_nodes))
-                                        for i in range(action_1.shape[0]):
-                                            action_1[i][obj_mov] = 1
-                                            action_1[i][3:] = action_numpy[obj_mov]
-                                        sample_action = torch.Tensor(action_1).to(device)
-                                        this_sequence.append(sample_action)
-                                    loss_func = nn.MSELoss()
-                                    test_loss = 0
-                                    current_latent = outs['current_embed']
-                                    for seq in range(len(this_sequence)):
-                                        #print([current_latent, this_sequence[seq]])
-                                        graph_node_action = torch.cat((current_latent, this_sequence[seq]), axis = 1)
-                                        current_latent = self.classif_model.graph_dynamics(graph_node_action)
-                                    test_loss += loss_func(current_latent, outs_2['current_embed'])
-                                    # print(sample_action)
-                                    # print(test_loss)
-                                    loss_list.append(test_loss)
-                                    if(test_loss.detach().cpu().numpy() < min_cost):
-                                        min_action = this_sequence
-                                        min_cost = test_loss.detach().cpu().numpy()
-                                #print(loss_list)
-                                node_pose_numpy = node_pose.cpu().numpy()
-                                if True: #for seq in range(len(min_action)):
-                                    this_seq_numpy = min_action[0].cpu().numpy()
-                                    all_action_sequence_list.append(this_seq_numpy[0])
-                                    #print(this_seq_numpy[0][:3])
-                                    change_id = np.argmax(this_seq_numpy[0][:3])
-                                    #print(change_id)
-                                    node_pose_numpy[change_id][3:6] += this_seq_numpy[0][3:]
-                                    node_pose_numpy[change_id][5] -= 0.02
-                                    #if(this_seq_numpy[0])
-                                    all_node_pose_list.append(node_pose_numpy)
-                                    node_pose = torch.Tensor(node_pose_numpy).to(device)
-                                    generate_edge_embed_list = self.generate_edge_embed(node_pose)
-                                    #print(generate_edge_embed_list)
-                                    data = self.create_graph(self.num_nodes, self.node_inp_size, node_pose, self.edge_inp_size, torch.stack(scene_emb_list[0]), min_action[0])
-                                    batch = Batch.from_data_list([data]).to(device)
-                                    outs = self.classif_model(batch.x, batch.edge_index, batch.edge_attr, batch.batch, batch.action)
-                            # print(min_action)
-                            # print(min_cost)
-                            print(node_pose)
+                            data_2_decoder = self.create_graph(self.num_nodes, self.node_emb_size, current_latent, self.edge_emb_size, egde_latent, sample_action)
+    
+                            batch_decoder_2 = Batch.from_data_list([data_2_decoder]).to(device)
 
-                            #print(node_pose_numpy)
-                            print(node_pose_goal)
-                            print(all_action_sequence_list)
-                            #print(all_node_pose_list)
-                            print(self.dynamics_loss(node_pose[:,:6], node_pose_goal[:,:6]))
-                                #print(action)
+                            outs_decoder_2 = self.classif_model_decoder(batch_decoder_2.x, batch_decoder_2.edge_index, batch_decoder_2.edge_attr, batch_decoder_2.batch, batch_decoder_2.action)
+                            
+                            
+                            
+                            if self.all_gt_sigmoid:
+                                test_loss += self.bce_loss(outs_decoder_2['pred_sigmoid'][:, :], x_tensor_dict_next['batch_all_obj_pair_relation'])
+            
+                            costs.append(test_loss.detach().cpu().numpy())
+                            # if(test_loss.detach().cpu().numpy() < min_cost):
+                            #     min_action = this_sequence
+                            #     min_cost = test_loss.detach().cpu().numpy()
+                    
+                            #     costs.append(test_loss)
 
+                        index = np.argsort(costs)
+                        elite = act[index,:,:]
+                        elite = elite[:3, :, :]
+                            # print('elite')
+                            # print(elite)
+                        act_mu = elite.mean(axis = 0)
+                        act_sigma = elite.std(axis = 0)
+                        print([act_mu, act_sigma])
+                        # if(act_sigma[0][0] < 0.1 and act_sigma[0][1] < 0.1):
+                        #     break
+                        #print(act_sigma)
+                    # print('find_actions')
+                    # print(act_mu)
+                    chosen_action = act_mu
+                    action_numpy = np.zeros((num_nodes, 3))
+                    action_numpy[obj_mov][0] = chosen_action[0, 0]
+                    action_numpy[obj_mov][1] = chosen_action[0, 1]
+                    action_numpy[obj_mov][2] = 0 #np.random.uniform(-0.2,0.2)
+                    if self.set_max:
+                        action = np.zeros((num_nodes, self.max_objects + 3))
+                    else:
+                        action = np.zeros((num_nodes, num_nodes + 3))
+                    for i in range(action.shape[0]):
+                        action[i][obj_mov] = 1
+                        action[i][-3:] = action_numpy[obj_mov]
+                            
+                    sample_action = torch.Tensor(action).to(device)
+                    # if(_ == 0):
+                    #     sample_action = action
+                    this_sequence = []
+                    this_sequence.append(sample_action)
+                    if True:
+                        loss_func = nn.MSELoss()
+                        test_loss = 0
+                        current_latent = outs['current_embed']
+                        egde_latent = outs['edge_embed']
+                        #print('prev_embed, edge_embed, action', [current_latent, egde_latent, sample_action])
+                        for seq in range(len(this_sequence)):
+                            #print([current_latent, this_sequence[seq]])
+                            if self.use_graph_dynamics:
+                                current_action = self.classif_model.action_emb(this_sequence[seq])
+                            else:
+                                current_action = self.classif_model.action_emb(this_sequence[seq])
+                            graph_node_action = torch.cat((current_latent, current_action), axis = 1)
+                            current_latent = self.classif_model.graph_dynamics(graph_node_action)
+                        for seq in range(len(this_sequence)):
+                            #print([current_latent, this_sequence[seq]])
+                            #edge_action = torch.stack([this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0], this_sequence[seq][0]])
+                            edge_num = egde_latent.shape[0]
+                            edge_action_list = []
+                            if self.use_graph_dynamics:
+                                current_action = self.classif_model.action_emb(this_sequence[seq])
+                            else:
+                                current_action = self.classif_model.action_emb(this_sequence[seq])
+                            for _ in range(edge_num):
+                                edge_action_list.append(current_action[0])
+                            edge_action = torch.stack(edge_action_list)
+                            graph_edge_action = torch.cat((egde_latent, edge_action), axis = 1)
+                            egde_latent = self.classif_model.graph_edge_dynamics(graph_edge_action)
+                        #test_loss += loss_func(current_latent, outs_2['current_embed'])
+                        #print(egde_latent.shape)
+                        # print(current_latent)
+                        # print(egde_latent)
+                        #outs_edge = self.classif_model.forward_decoder(current_latent, batch.edge_index, egde_latent, batch.batch, sample_action)
+
+                        data_2_decoder = self.create_graph(self.num_nodes, self.node_emb_size, current_latent, self.edge_emb_size, egde_latent, sample_action)
+    
+                        batch_decoder_2 = Batch.from_data_list([data_2_decoder]).to(device)
+
+                        outs_decoder_2 = self.classif_model_decoder(batch_decoder_2.x, batch_decoder_2.edge_index, batch_decoder_2.edge_attr, batch_decoder_2.batch, batch_decoder_2.action)
+                        
+                        
+                        
+                        if self.all_gt_sigmoid:
+                            test_loss += self.bce_loss(outs_decoder_2['pred_sigmoid'][:, :], x_tensor_dict_next['batch_all_obj_pair_relation'])
+                
+                        #sample_list.append(outs_edge['pred_edge'])
+                        loss_list.append(test_loss)
+                        if(test_loss.detach().cpu().numpy() < min_cost):
+                            min_prediction = outs_decoder_2['pred_sigmoid'][:, :]
+                            min_action = this_sequence
+                            min_pose = outs_decoder_2['pred'][:, :]
+                            min_cost = test_loss.detach().cpu().numpy()
+                
+                # print('initial_edge_embed', x_tensor_dict['batch_all_obj_pair_relation'][0][:])
+                # print('min_prediction', min_prediction)
+                # print('min node pose prediction', min_pose)
+                pred_relations = min_prediction.cpu().detach().numpy()
+                goal_relations = x_tensor_dict_next['batch_all_obj_pair_relation'].cpu().detach().numpy()
+
+                planning_success_num = 1
+                for obj_id in range(pred_relations.shape[0]):
+                    for relation_id in range(pred_relations.shape[1]):
+                        if goal_relations[obj_id][relation_id] == 1:
+                            if pred_relations[obj_id][relation_id] < planning_threshold:
+                                planning_success_num = 0
+                        elif goal_relations[obj_id][relation_id] == 0:
+                            if pred_relations[obj_id][relation_id] > 1 - planning_threshold:
+                                planning_success_num = 0
+
+                print('pred_relations', pred_relations)
+                print('goal_relations', goal_relations)
+                print('planning_success_num', planning_success_num)
+                node_pose_numpy = node_pose.detach().cpu().numpy()
+                change_id_leap = 0
+                if True: #for seq in range(len(min_action)):
+                    this_seq_numpy = min_action[0].cpu().numpy()
+                    change_id = np.argmax(this_seq_numpy[0][:self.num_nodes])
+                        #print(change_id)
+                    if change_id == 0:
+                        change_id_leap = 1
+                        node_pose_numpy[0][-3:] += this_seq_numpy[0][-3:]
+                    #node_pose_numpy[0][3:6] += this_seq_numpy[0][-3:]
+                    #     #if(this_seq_numpy[0])
+                    # all_node_pose_list.append(node_pose_numpy)
+                    # node_pose = torch.Tensor(node_pose_numpy)
+                    # generate_edge_embed_list = self.generate_edge_embed(node_pose)
+                node_pose_numpy_goal = node_pose_goal.detach().cpu().numpy()
+                choose_list = [0,-1]
+                # print('node_pose', [node_pose_numpy[[0,-1]], node_pose_goal[[0,-1]]])
+                
+                
+                print("min_action", min_action)
+                #min_action_numpy
+                print("action_torch", action_torch)
+                #print()
+                print("min_cost", min_cost)
+                # if change_id_leap == 1:
+                #     goal_loss = loss_func(torch.stack(current_relations[:]), torch.stack(goal_relations[:]))
+                #     print(goal_loss)
+                #     if(goal_loss.detach().cpu().numpy() < 1e-3):
+                #         success_num += 1
+                min_action_numpy = min_action[0].cpu().numpy()
+                action_numpy = action_torch.cpu().numpy()
+
+                # for node_pose_iter in range(node_pose_numpy.shape[0]):
+                #     self.node_pose_list.append(node_pose_numpy[node_pose_iter])
+                # for action_iter in range(1):
+                #     self.action_list.append(min_action_numpy[action_iter])
+                # for goal_relation_i in range(goal_relation.shape[0]):
+                #     for goal_relation_j in range(goal_relation.shape[1]):
+                #         self.goal_relation_list.append(goal_relation[goal_relation_i][goal_relation_j])
+                self.node_pose_list.append(node_pose_numpy)
+                self.action_list.append(min_action_numpy)
+                self.goal_relation_list.append(goal_relations)
+                self.gt_pose_list.append(self.gt_pose[0])
+                self.gt_extents_range_list.append(self.gt_extents_range[0])
+                self.predicted_relations.append(pred_relations)
+                
+                
+                
+            
+                
+                # simplied version of planned action success rate for pushing task
+                success_num = 1
+                for action_i in range(min_action_numpy.shape[1] - 3):
+                    if(min_action_numpy[0][action_i] != action_numpy[0][action_i]):
+                        success_num = 0
+                if min_action_numpy[0][-2]*action_numpy[0][-2] < 0: #np.abs(min_action_numpy[0][3] - action_numpy[0][3]) >= 0.06 or np.abs(min_action_numpy[0][4] - action_numpy[0][4]) >= 0.06:
+                    success_num = 0
+                
+            print("success_num", success_num)
+            print("success_num/total_num", success_num/total_num)                    
+            #print(action)
 
         # #print(batch_result_dict)
         planning_leap = 0
@@ -5539,7 +3632,7 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
                 batch_result_dict['point_cloud_not_complete'] = self.total_num - self.success_exe_num - self.fail_exe_num - self.fail_mp_num
             print("sucess_exe, fail_exe, fail_mp, total_num", self.success_exe_num, self.fail_exe_num, self.fail_mp_num, self.total_num)
             
-
+        #Testing/Planning
         elif not train:
             if self.pushing and not self.pick_place:
                 if graph_latent:
@@ -8483,7 +6576,8 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
         return data, data_next
    
     def train_next(self, train=True, viz_images=False, save_embedding=True, log_prefix='', threshold = 0.8):
-        print("Begin training")
+        #Entrypoint to train/test
+
         args = self.config.args
         log_freq_iters = args.log_freq_iters if train else 10
         dataloader = self.dataloader
@@ -8594,42 +6688,6 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
                 num_batches = 100
             for e in range(num_epochs):
                 for batch_idx in range(num_batches):
-                    # Get raw data from the dataloader.
-                    #print('enter')
-                    # batch_data = []
-                    # batch_data_next = []
-                    # batch_get_start_time = time.time()
-
-                    # while len(batch_data) < batch_size and data_idx < train_data_size:
-                    #     data, data_next = self.get_next_data_from_dataloader(dataloader, train)
-                    #     #print([data['all_obj_pair_pos'], data_next['all_obj_pair_pos']])
-                    #     batch_data.append(data)
-                    #     batch_data_next.append(data_next)
-                    #     data_idx = data_idx + 1
-
-                    # batch_get_end_time = time.time()
-                    # # print("Data time: {:.4f}".format(
-                    #     # batch_get_end_time - batch_get_start_time))
-
-                    # # Process raw batch data
-                    # proc_data_start_time = time.time()
-                    # #print(batch_data)
-                    
-                    # x_dict = self.process_raw_batch_data_point_cloud(batch_data)
-                    # # Now collate the batch data together
-                    # x_tensor_dict = self.collate_batch_data_to_tensors_point_cloud(x_dict)
-
-                    # x_dict_next = self.process_raw_batch_data_point_cloud(batch_data_next)
-                    # # Now collate the batch data together
-                    # x_tensor_dict_next = self.collate_batch_data_to_tensors_point_cloud(x_dict_next)
-
-                    # proc_data_end_time = time.time()
-
-                    # # print(batch_data[0]["scene_path"], batch_data[0]["precond_label"])
-                    # # print(batch_data[1]["scene_path"], batch_data[1]["precond_label"])
-                    # # print(batch_data[2]["scene_path"], batch_data[2]["precond_label"])
-                    # # print(batch_data[3]["scene_path"], batch_data[3]["precond_label"])
-                    # run_batch_start_time = time.time()
                     if True:
                             batch_result_dict, leap = self.run_model_on_batch_ground_truth(
                             train=train,
@@ -8665,223 +6723,33 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
                 for k in ['train_img_emb', 'train_gt', 'train_pred']:
                     result_dict['emb'][k] = []
 
-                if self.data_sequence:
-                    for batch_idx in range(num_batches):
-                        # Get raw data from the dataloader.
-                        #print('enter')
+        
+                for batch_idx in range(num_batches):
+
+                    batch_data = []
+                    batch_data_next = []
+
+                    while len(batch_data) < batch_size and data_idx < train_data_size:  # in current version, we totally ignore batch size
                         data, data_next = self.get_next_data_from_dataloader(dataloader, train)
-                        for data_id in range(len(data)):
-                            batch_data = []
-                            batch_data_next = []
-                            batch_get_start_time = time.time()
+                        batch_data.append(data)
+                        batch_data_next.append(data_next)
+                        data_idx = data_idx + 1
 
-                            if True: #while len(batch_data) < batch_size and data_idx < train_data_size:  # in current version, we totally ignore batch size
-                                #data, data_next = self.get_next_data_from_dataloader(dataloader, train)
-                                #print([data['all_obj_pair_pos'], data_next['all_obj_pair_pos']])
-                                # for data_id in range(len(data)):
-                                #     print(data_id)
-                                #     batch_data.append(data[data_id])
-                                #     batch_data_next.append(data_next[data_id])
-                                batch_data.append(data[data_id])
-                                batch_data_next.append(data_next[data_id])
-                                data_idx = data_idx + 1
+                    proc_data_start_time = time.time()
 
-                            batch_get_end_time = time.time()
-                            # print("Data time: {:.4f}".format(
-                                # batch_get_end_time - batch_get_start_time))
+                    
+                    x_dict = self.process_raw_batch_data_point_cloud(batch_data)
+                    # Now collate the batch data together
+                    x_tensor_dict = self.collate_batch_data_to_tensors_point_cloud(x_dict)
 
-                            # Process raw batch data
-                            proc_data_start_time = time.time()
-                            #print(batch_data)
-                            
-                            x_dict = self.process_raw_batch_data_point_cloud(batch_data)
-                            # Now collate the batch data together
-                            x_tensor_dict = self.collate_batch_data_to_tensors_point_cloud(x_dict)
+                    x_dict_next = self.process_raw_batch_data_point_cloud(batch_data_next)
+                    # Now collate the batch data together
+                    x_tensor_dict_next = self.collate_batch_data_to_tensors_point_cloud(x_dict_next)
 
-                            x_dict_next = self.process_raw_batch_data_point_cloud(batch_data_next)
-                            # Now collate the batch data together
-                            x_tensor_dict_next = self.collate_batch_data_to_tensors_point_cloud(x_dict_next)
-
-                            proc_data_end_time = time.time()
-
-                            # print(batch_data[0]["scene_path"], batch_data[0]["precond_label"])
-                            # print(batch_data[1]["scene_path"], batch_data[1]["precond_label"])
-                            # print(batch_data[2]["scene_path"], batch_data[2]["precond_label"])
-                            # print(batch_data[3]["scene_path"], batch_data[3]["precond_label"])
-                            run_batch_start_time = time.time()
-                            if self.contrasive:
-                                    batch_result_dict, leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier_contrasive(
-                                    x_tensor_dict,
-                                    x_tensor_dict_next,
-                                    batch_size,
-                                    train=train,
-                                    save_preds=True,
-                                    save_emb=True)
-                            else:
-                                if self.use_centroid_estimation:
-                                    print('4')
-                                    batch_result_dict, leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier_centroid_e2e(
-                                                x_tensor_dict,
-                                                x_tensor_dict_next,
-                                                batch_size,
-                                                train=train,
-                                                save_preds=True,
-                                                save_emb=True)
-                                elif self.use_point_cloud_embedding:
-                                    if self.e2e:
-                                        if self.relations_only:
-                                            print('3')
-                                            batch_result_dict, leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier_point_cloud_e2e_relations_only(
-                                                    x_tensor_dict,
-                                                    x_tensor_dict_next,
-                                                    batch_size,
-                                                    train=train,
-                                                    save_preds=True,
-                                                    save_emb=True)
-                                        else:
-                                            print('2')
-                                            if self.bounding_box_baselines:
-                                                batch_result_dict, leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier_point_cloud_bounding_box_6DOF(
-                                                    x_tensor_dict,
-                                                    x_tensor_dict_next,
-                                                    batch_size,
-                                                    train=train,
-                                                    save_preds=True,
-                                                    save_emb=True)
-                                            elif self.pointconv_baselines:
-                                                batch_result_dict, leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier_point_cloud_e2e_pointconv(
-                                                    x_tensor_dict,
-                                                    x_tensor_dict_next,
-                                                    batch_size,
-                                                    train=train,
-                                                    save_preds=True,
-                                                    save_emb=True)
-                                            elif self.manual_relations:
-                                                batch_result_dict, leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier_point_cloud_e2e_manual_relations(
-                                                    x_tensor_dict,
-                                                    x_tensor_dict_next,
-                                                    batch_size,
-                                                    train=train,
-                                                    save_preds=True,
-                                                    save_emb=True)
-                                            else:
-                                                print('1')
-                                                batch_result_dict, leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier_point_cloud_e2e(
-                                                        x_tensor_dict,
-                                                        x_tensor_dict_next,
-                                                        batch_size,
-                                                        train=train,
-                                                        save_preds=True,
-                                                        save_emb=True)
-                                    else:
-                                        batch_result_dict, leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier_point_cloud_embedding(
-                                                x_tensor_dict,
-                                                x_tensor_dict_next,
-                                                batch_size,
-                                                train=train,
-                                                save_preds=True,
-                                                save_emb=True)
-                                elif self.new_relational_classifier:
-                                    if self.set_max:
-                                        batch_result_dict, leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier(
-                                            x_tensor_dict,
-                                            x_tensor_dict_next,
-                                            batch_size,
-                                            train=train,
-                                            save_preds=True,
-                                            save_emb=True)
-                                    else:
-                                        batch_result_dict, leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier_max(
-                                            x_tensor_dict,
-                                            x_tensor_dict_next,
-                                            batch_size,
-                                            train=train,
-                                            save_preds=True,
-                                            save_emb=True)
-                                elif self.gt_edge or self.all_gt_sigmoid:
-                                    batch_result_dict, leap = self.run_model_on_batch_torch_geometry_pick_primitive_gt(
-                                        x_tensor_dict,
-                                        x_tensor_dict_next,
-                                        batch_size,
-                                        train=train,
-                                        save_preds=True,
-                                        save_emb=True)
-                                elif self.set_max:
-                                    batch_result_dict, leap = self.run_model_on_batch_torch_geometry_pick_primitive_max_objects(
-                                        x_tensor_dict,
-                                        x_tensor_dict_next,
-                                        batch_size,
-                                        train=train,
-                                        save_preds=True,
-                                        save_emb=True)
-                                else:
-                                    batch_result_dict, leap = self.run_model_on_batch_torch_geometry_pick_primitive(
-                                        x_tensor_dict,
-                                        x_tensor_dict_next,
-                                        batch_size,
-                                        train=train,
-                                        save_preds=True,
-                                        save_emb=True)
-                            run_batch_end_time = time.time()
-                            if leap != -1:
-                                total_leap += 1
-                                total_true_leap += leap
-                            train_step_count += 1
-                            if total_leap != 0:
-                                print(total_true_leap/total_leap)
-
-                            if train and train_step_count % args.save_freq_iters == 0:
-                                self.save_checkpoint(train_step_count)
-                else:
-                    for batch_idx in range(num_batches):
-                        # Get raw data from the dataloader.
-                        #print('enter')
-                        #data, data_next = self.get_next_data_from_dataloader(dataloader, train)
-                        if True:
-                            batch_data = []
-                            batch_data_next = []
-                            batch_get_start_time = time.time()
-
-                            while len(batch_data) < batch_size and data_idx < train_data_size:  # in current version, we totally ignore batch size
-                                data, data_next = self.get_next_data_from_dataloader(dataloader, train)
-                                batch_data.append(data)
-                                batch_data_next.append(data_next)
-                                data_idx = data_idx + 1
-
-                            batch_get_end_time = time.time()
-                            # print("Data time: {:.4f}".format(
-                                # batch_get_end_time - batch_get_start_time))
-
-                            # Process raw batch data
-                            proc_data_start_time = time.time()
-                            #print(len(batch_data))
-                            
-                            x_dict = self.process_raw_batch_data_point_cloud(batch_data)
-                            # Now collate the batch data together
-                            x_tensor_dict = self.collate_batch_data_to_tensors_point_cloud(x_dict)
-
-                            x_dict_next = self.process_raw_batch_data_point_cloud(batch_data_next)
-                            # Now collate the batch data together
-                            x_tensor_dict_next = self.collate_batch_data_to_tensors_point_cloud(x_dict_next)
-
-                            proc_data_end_time = time.time()
-
-                            # print(batch_data[0]["scene_path"], batch_data[0]["precond_label"])
-                            # print(batch_data[1]["scene_path"], batch_data[1]["precond_label"])
-                            # print(batch_data[2]["scene_path"], batch_data[2]["precond_label"])
-                            # print(batch_data[3]["scene_path"], batch_data[3]["precond_label"])
-                            run_batch_start_time = time.time()
-                            if self.test_end_relations:
-                                batch_result_dict, leap, planning_leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier_end_relations(
-                                    x_tensor_dict,
-                                    x_tensor_dict_next,
-                                    batch_size,
-                                    train=train,
-                                    save_preds=True,
-                                    save_emb=True, 
-                                    threshold = threshold)
-                            elif self.contrasive:
-                                batch_result_dict, leap, planning_leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier_contrasive(
+                    if self.use_point_cloud_embedding:
+                        if self.e2e:
+                            if self.manual_relations: 
+                                batch_result_dict, leap, planning_leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier_point_cloud_e2e_manual_relations(
                                     x_tensor_dict,
                                     x_tensor_dict_next,
                                     batch_size,
@@ -8890,160 +6758,42 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
                                     save_emb=True, 
                                     threshold = threshold)
                             else:
-                                if self.use_centroid_estimation:
-                                    batch_result_dict, leap, planning_leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier_centroid_e2e(
-                                            x_tensor_dict,
-                                            x_tensor_dict_next,
-                                            batch_size,
-                                            train=train,
-                                            save_preds=True,
-                                            save_emb=True, 
-                                            threshold = threshold)
-                                elif self.use_point_cloud_embedding:
-                                    if self.e2e:
-                                        if self.relations_only:
-                                            batch_result_dict, leap, planning_leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier_point_cloud_e2e_relations_only(
-                                                x_tensor_dict,
-                                                x_tensor_dict_next,
-                                                batch_size,
-                                                train=train,
-                                                save_preds=True,
-                                                save_emb=True, 
-                                                threshold = threshold)
-                                        else:
-                                            #print('enter2')
-                                            if self.bounding_box_baselines and not self.evaluate_end_relations:
-                                                batch_result_dict, leap, planning_leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier_point_cloud_bounding_box_6DOF(
-                                                    x_tensor_dict,
-                                                    x_tensor_dict_next,
-                                                    batch_size,
-                                                    train=train,
-                                                    save_preds=True,
-                                                    save_emb=True, 
-                                                    threshold = threshold)
-                                            elif self.pointconv_baselines:
-                                                batch_result_dict, leap, planning_leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier_point_cloud_e2e_pointconv(
-                                                    x_tensor_dict,
-                                                    x_tensor_dict_next,
-                                                    batch_size,
-                                                    train=train,
-                                                    save_preds=True,
-                                                    save_emb=True, 
-                                                    threshold = threshold)
-                                                #print('enter3')
-                                            elif self.manual_relations:
-                                                batch_result_dict, leap, planning_leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier_point_cloud_e2e_manual_relations(
-                                                    x_tensor_dict,
-                                                    x_tensor_dict_next,
-                                                    batch_size,
-                                                    train=train,
-                                                    save_preds=True,
-                                                    save_emb=True, 
-                                                    threshold = threshold)
-                                                #print('enter4')
-                                            else:
-                                                #print('enter1')
-                                                batch_result_dict, leap, planning_leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier_point_cloud_e2e(
-                                                    x_tensor_dict,
-                                                    x_tensor_dict_next,
-                                                    batch_size,
-                                                    train=train,
-                                                    save_preds=True,
-                                                    save_emb=True, 
-                                                    threshold = threshold)
-                                    else:
-                                        batch_result_dict, leap, planning_leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier_point_cloud_embedding(
-                                                x_tensor_dict,
-                                                x_tensor_dict_next,
-                                                batch_size,
-                                                train=train,
-                                                save_preds=True,
-                                                save_emb=True, 
-                                            threshold = threshold)
-                                elif self.new_relational_classifier:
-                                    if self.set_max:
-                                        batch_result_dict, leap, planning_leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier_max(
-                                            x_tensor_dict,
-                                            x_tensor_dict_next,
-                                            batch_size,
-                                            train=train,
-                                            save_preds=True,
-                                            save_emb=True, 
-                                            threshold = threshold)
-                                    else:
-                                        batch_result_dict, leap, planning_leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier(
-                                            x_tensor_dict,
-                                            x_tensor_dict_next,
-                                            batch_size,
-                                            train=train,
-                                            save_preds=True,
-                                            save_emb=True, 
-                                            threshold = threshold)
-                                elif self.gt_edge or self.all_gt_sigmoid:
-                                    batch_result_dict, leap = self.run_model_on_batch_torch_geometry_pick_primitive_gt(
-                                        x_tensor_dict,
-                                        x_tensor_dict_next,
-                                        batch_size,
-                                        train=train,
-                                        save_preds=True,
-                                        save_emb=True)
-                                elif self.set_max:
-                                    batch_result_dict, leap = self.run_model_on_batch_torch_geometry_pick_primitive_max_objects(
-                                        x_tensor_dict,
-                                        x_tensor_dict_next,
-                                        batch_size,
-                                        train=train,
-                                        save_preds=True,
-                                        save_emb=True)
-                                else:
-                                    batch_result_dict, leap = self.run_model_on_batch_torch_geometry_pick_primitive(
-                                        x_tensor_dict,
-                                        x_tensor_dict_next,
-                                        batch_size,
-                                        train=train,
-                                        save_preds=True,
-                                        save_emb=True)
-                            run_batch_end_time = time.time()
-                            if leap != -1:
-                                if self.manual_relations:
-                                    total_leap += 1
-                                else:
-                                    total_leap += 1
-                                total_true_leap += leap
-                                if planning_leap == 1:
-                                    total_sudo_total_num += 1
-                                    total_sudo_success_num += leap
-                            if planning_leap != -1:
-                                total_planning_num += 1
-                                total_success_planning_num += planning_leap
-                            train_step_count += 1
-                            if not train:
-                                if total_leap != 0:
-                                    print('sudo execution success num',total_true_leap/total_leap)
-                                if total_sudo_total_num != 0:
-                                    print('sudo execution success num based on planning threshold',total_sudo_success_num/total_sudo_total_num)
+                                batch_result_dict, leap, planning_leap = self.run_model_on_batch_torch_geometry_pick_primitive_new_relational_classifier_point_cloud_e2e(
+                                    x_tensor_dict,
+                                    x_tensor_dict_next,
+                                    batch_size,
+                                    train=train,
+                                    save_preds=True,
+                                    save_emb=True, 
+                                    threshold = threshold)
 
-                                if total_planning_num != 0:
-                                    print('planning success num', total_success_planning_num/total_planning_num)
+                    if leap != -1:
+                        if self.manual_relations:
+                            total_leap += 1
+                        else:
+                            total_leap += 1
+                        total_true_leap += leap
+                        if planning_leap == 1:
+                            total_sudo_total_num += 1
+                            total_sudo_success_num += leap
+                    if planning_leap != -1:
+                        total_planning_num += 1
+                        total_success_planning_num += planning_leap
+                    train_step_count += 1
+                    if not train:
+                        if total_leap != 0:
+                            print('sudo execution success num',total_true_leap/total_leap)
+                        if total_sudo_total_num != 0:
+                            print('sudo execution success num based on planning threshold',total_sudo_success_num/total_sudo_total_num)
 
-                                
-                            
+                        if total_planning_num != 0:
+                            print('planning success num', total_success_planning_num/total_planning_num)
 
-                            if train and train_step_count % args.save_freq_iters == 0:
-                                self.save_checkpoint(train_step_count)
+                        
+                    
 
-        if self.pointconv_baselines:
-            print('self.pointconv_run_label',self.pointconv_run_label)
-            print(self.detection_pr)
-            
-            detection_pr = self.detection_pr
-            detection_prf = np.zeros((7,3))
-            for detection_i in range(detection_prf.shape[0]):
-                detection_prf[detection_i][0] = detection_pr[detection_i][0] / (detection_pr[detection_i][0] + detection_pr[detection_i][1])
-                detection_prf[detection_i][1] = detection_pr[detection_i][0] / (detection_pr[detection_i][0] + detection_pr[detection_i][3])
-                detection_prf[detection_i][2] = (2*detection_prf[detection_i][0]*detection_prf[detection_i][1])/(detection_prf[detection_i][0] + detection_prf[detection_i][1])
-            print('detection prf', detection_prf)
-            print(detection_prf[:,-1].tolist())
+                    if train and train_step_count % args.save_freq_iters == 0:
+                        self.save_checkpoint(train_step_count)
         
         if total_leap != 0:
             print(total_true_leap/total_leap)
@@ -9094,85 +6844,12 @@ def main(args):
     # Entry points:
     #####################################################################################
 
-    find_best_checkpoint = False
-    """
-    if find_best_checkpoint:
-        #Find_best_checkpoint True. For retraining? idk.
-
-        all_execution_success_list = []
-        
-        #print('saved checkpoint path',args.checkpoint_path)
-        
-        #time.sleep(2)
-        checkpoint_list = []
-        for checkpoint_gap_number in range(15):
-            checkpoint_list.append(1001*15*(checkpoint_gap_number + 1))
-        #print('new checkpoint path', new_saved_checkpoint_path)
-        for checkpoint_gap_number in checkpoint_list:
-            new_saved_checkpoint_path =  new_checkpoint_path = args.checkpoint_path + str(checkpoint_gap_number) + ".pth"
-            trainer.load_checkpoint(new_saved_checkpoint_path)
-            result_dict, planning_success_rate, execution_success_list = trainer.train_next(train=False,
-                                                    viz_images=False,
-                                                    save_embedding=True, 
-                                                    threshold = 0)
-            all_execution_success_list.append(execution_success_list)
-            print(all_execution_success_list)
-    """
+    ##Test
     if len(args.checkpoint_path) > 0:
         # Checkpoint path provided, so presumably for testing. #Note: Why is testing sent to the train_next with a parameter of 'train' = false. This seems silly.
         trainer.load_checkpoint(args.checkpoint_path)
-        if test_end_relations_leap:
-            if not get_planning_success_leap:
                 
-                # Test_end_relations_leap TRUE ; get_planning success_leap FALSE
-                ###TRAIN### 
-                result_dict, planning_success_rate, execution_success_list = trainer.train_next_end_relations(viz_images=True,
-                                                data_index = i)
-
-                #PRINT AND COMPUTE SOME RESULTS                                
-                print('result_dict', result_dict)
-                print(result_dict['planning_pr'])
-                print(result_dict['detection_pr'])
-                planning_prf[0,0] = result_dict['planning_pr'][0][0] / (result_dict['planning_pr'][0][0] + result_dict['planning_pr'][0][1])
-                planning_prf[0,1] = result_dict['planning_pr'][0][0] / (result_dict['planning_pr'][0][0] + result_dict['planning_pr'][0][3])
-                planning_prf[0,2] = (2*planning_prf[0,0]*planning_prf[0,1])/(planning_prf[0,0] + planning_prf[0,1])
-
-                print('planning prf', planning_prf)
-                for detection_i in range(detection_prf.shape[0]):
-                    detection_prf[detection_i][0] = result_dict['detection_pr'][detection_i][0] / (result_dict['detection_pr'][detection_i][0] + result_dict['detection_pr'][detection_i][1])
-                    detection_prf[detection_i][1] = result_dict['detection_pr'][detection_i][0] / (result_dict['detection_pr'][detection_i][0] + result_dict['detection_pr'][detection_i][3])
-                    detection_prf[detection_i][2] = (2*detection_prf[detection_i][0]*detection_prf[detection_i][1])/(detection_prf[detection_i][0] + detection_prf[detection_i][1])
-                print('detection prf', detection_prf)
-                result_dict_list.append(result_dict)
-                success_planning_rate_list.append(result_dict['success_planning_num']/result_dict['total_num'])
-                success_exe_rate_list.append(result_dict['success_exe_num']/result_dict['total_num'])
-                success_pred_exe_rate_list.append(result_dict['success_pred_exe_num']/result_dict['total_num'])
-                success_pred_rate_list.append(result_dict['success_pred_num']/result_dict['total_num'])
-                pure_success_planning_rate_list.append(result_dict['success_planning_num']/(result_dict['total_num'] - result_dict['fail_mp_num']))
-                pure_success_exe_rate_list.append(result_dict['success_exe_num']/((result_dict['total_num']) - result_dict['fail_mp_num'] - result_dict['point_cloud_not_complete']))
-                pure_success_pred_exe_rate_list.append(result_dict['success_pred_exe_num']/((result_dict['total_num']) - result_dict['fail_mp_num'] - result_dict['point_cloud_not_complete']))
-                pure_success_pred_rate_list.append(result_dict['success_pred_num']/((result_dict['total_num']) - result_dict['fail_mp_num']))
-                fall_mp_list.append(result_dict['fail_mp_num']/result_dict['total_num'])
-            else:
-                for i in range(len(threshold_list)):
-                    
-                    # Test_end_relations_leap TRUE ; get_planning_success_leap TRUE
-                    ##TRAIN## 
-                    result_dict, planning_success_rate, execution_success_list = trainer.train_next_end_relations(viz_images=True,
-                                                    data_index = i)
-                    
-                    # PRINT AND COMPUTE SOME RESULTS
-                    print('result_dict', result_dict)
-                    
-                    result_dict_list.append(result_dict)
-                    success_exe_rate_list.append(result_dict['success_exe_num']/result_dict['total_num'])
-                    success_pred_exe_rate_list.append(result_dict['success_pred_exe_num']/result_dict['total_num'])
-                    success_pred_rate_list.append(result_dict['success_pred_num']/result_dict['total_num'])
-                    pure_success_exe_rate_list.append(result_dict['success_exe_num']/((result_dict['total_num']) - result_dict['fail_mp_num']))
-                    pure_success_pred_exe_rate_list.append(result_dict['success_pred_exe_num']/((result_dict['total_num']) - result_dict['fail_mp_num']))
-                    pure_success_pred_rate_list.append(result_dict['success_pred_num']/((result_dict['total_num']) - result_dict['fail_mp_num']))
-                    fall_mp_list.append(result_dict['fail_mp_num']/result_dict['total_num'])
-        elif get_planning_success_leap:
+        if get_planning_success_leap:
             for i in range(len(threshold_list)):
                 
                 # Test_end_relations_leap FALSE ; get_planning_success_leap TRUE
@@ -9282,6 +6959,8 @@ def main(args):
         # print('pure_success_pred_exe_rate_list', pure_success_pred_exe_rate_list)
         # print('pure_success_pred_rate_list', pure_success_pred_rate_list)
         # print('fall_mp_list', fall_mp_list)
+    
+    #Train
     else:
         #Checkpoint path not provided
 
@@ -9293,30 +6972,8 @@ def main(args):
         with open(config_json_path, 'w') as config_json_f:
             config_json_f.write(json.dumps(args.__dict__))
 
-        # trainer.get_data_stats_for_classif()
-        if test_end_relations_leap:
-            if not get_planning_success_leap:
-                for i in range(1):
-                    result_dict, planning_success_rate, execution_success_list = trainer.train_next_end_relations(viz_images=True,
-                                                    data_index = i)
-                    print('result_dict', result_dict)
-                    result_dict_list.append(result_dict)
-                    success_exe_rate_list.append(result_dict['success_exe_num']/result_dict['total_num'])
-                    success_pred_exe_rate_list.append(result_dict['success_pred_exe_num']/result_dict['total_num'])
-                    success_pred_rate_list.append(result_dict['success_pred_num']/result_dict['total_num'])
-                    fall_mp_list.append(result_dict['fail_mp_num']/result_dict['total_num'])
-            else:
-                for i in range(len(threshold_list)):
-                    result_dict, planning_success_rate, execution_success_list = trainer.train_next_end_relations(viz_images=True,
-                                                    data_index = i)
-                    print('result_dict', result_dict)
-                    result_dict_list.append(result_dict)
-                    success_exe_rate_list.append(result_dict['success_exe_num']/result_dict['total_num'])
-                    success_pred_exe_rate_list.append(result_dict['success_pred_exe_num']/result_dict['total_num'])
-                    success_pred_rate_list.append(result_dict['success_pred_num']/result_dict['total_num'])
-                    fall_mp_list.append(result_dict['fail_mp_num']/result_dict['total_num'])
-        else:
-            result_dict = trainer.train_next(viz_images=True)
+        result_dict = trainer.train_next(viz_images=True)
+        
         if args.save_embedding_only:
             if not os.path.exists(args.emb_save_path):
                 # Create all intermediate dirs if required

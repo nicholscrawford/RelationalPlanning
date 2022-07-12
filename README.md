@@ -34,3 +34,8 @@ python ./relational_precond/trainer/multi_object_precond/train_multi_object_prec
 ## test 
 python ./relational_precond/trainer/multi_object_precond/train_multi_object_precond_e2e.py --result_dir RESULT_DIR --train_dir TRAIN_DIR --test_dir TEST_DIR --train_type 'all_object_pairs_gnn_new' --use_backbone_for_emb 0 --z_dim 7 --batch_size 1 --num_epochs 50000 --save_freq_iters 1001 --log_freq_iters 5 --print_freq_iters 1 --test_freq_iters 50 --lr 0.0003 --emb_lr 0.0001 --save_full_3d 1 --weight_precond 1.0 --loss_type 'classif' --classif_num_classes 2 --cuda 1 --start_id 0 --max_size 2 --start_test_id 0 --test_max_size 20 --max_objects 8 --use_multiple_train_dataset False --checkpoint_path PRETRAINED_MODEL --manual_relations True --using_sub_goal True --save_all_planning_info False 
 
+## Plans
+
+In integration, I'd like to be able to generate sequences of arbitrary actions, whether pick/place, push, or etc. So, action params have to generalize or separate models have to be created. A trained model should be able to generate a sequence of future actions that lead to reaching a goal state.
+
+So, given a simulation state and desired relations (which will be provided in config) this should return a sequence of actions to reach that state. This will be rerean, and only the next planned action will be added to the actual plan.
