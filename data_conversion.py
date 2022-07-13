@@ -1,9 +1,6 @@
-from real_robot_dataloader import AllPairVoxelDataloaderPointCloudSavePoints
-from real_robot_dataloader import AllPairVoxelDataloaderPointCloudFarthesetSampling
+from pc_gen_and_sample import AllPairVoxelDataloaderPointCloudSavePoints
+from pc_gen_and_sample import AllPairVoxelDataloaderPointCloudFarthesetSampling
 import pickle
-
-
-#Missing robot_octree_data in relational_precond/dataloader/
 
 def main():
     #conversion_dirs = ["gym_data/push_blocks_data"]
