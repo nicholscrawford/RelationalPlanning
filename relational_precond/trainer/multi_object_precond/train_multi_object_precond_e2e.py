@@ -1875,14 +1875,6 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
             # print(action_torch)
             # print(action_torch.shape)
             #print(node_pose)
-            self.debug_tools = False
-            
-            if self.debug_tools:
-                print('node pose', node_pose)
-                print('node pose goal', node_pose_goal)
-                print('scene_embed', scene_emb_list)
-                print('scene_embed_0', scene_emb_list_next[0])
-                print('diff embed', self.dynamics_loss(torch.stack(scene_emb_list[0]), torch.stack(scene_emb_list_next[0])))
             # print(generate_edge_embed_list)
 
             edge_feature = self.generate_edge_embed(node_pose)
@@ -1908,8 +1900,7 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
                     for check_i in range(this_one_hot_encoding_numpy.shape[0]):
                         if this_one_hot_encoding_numpy[check_i] == 1:
                             new_total_objects += 1
-                    print(this_one_hot_encoding_numpy)
-                    print(new_total_objects)
+
                     self.num_nodes = new_total_objects
                     img_emb_single = img_emb_single[:self.num_nodes]
                     img_emb_next_single = img_emb_next_single[:self.num_nodes]
