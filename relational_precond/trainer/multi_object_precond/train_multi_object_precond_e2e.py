@@ -1176,7 +1176,7 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
                 one_hot_encoding[one_hot_i][(int)(select_obj_num_range[one_hot_i])] = 1
             one_hot_encoding_tensor = torch.Tensor(one_hot_encoding).to(device)
             latent_one_hot_encoding = self.classif_model.one_hot_encoding_embed(one_hot_encoding_tensor)
-            #print('latent_one_hot_encoding, img_emb_single', [latent_one_hot_encoding.shape, img_emb_single.shape])
+            print('latent_one_hot_encoding, img_emb_single', [latent_one_hot_encoding.shape, img_emb_single.shape])
             node_pose = torch.cat([img_emb_single, latent_one_hot_encoding], dim = 1)
             #print(node_pose.shape)
             
@@ -1944,7 +1944,7 @@ class MultiObjectVoxelPrecondTrainerE2E(BaseVAETrainer):
                         one_hot_encoding[one_hot_i][(int)(select_obj_num_range[one_hot_i])] = 1
                     one_hot_encoding_tensor = torch.Tensor(one_hot_encoding).to(device)
                     latent_one_hot_encoding = self.classif_model.one_hot_encoding_embed(one_hot_encoding_tensor)
-                    #print('latent_one_hot_encoding, img_emb_single', [latent_one_hot_encoding.shape, img_emb_single.shape])
+                    print('latent_one_hot_encoding, img_emb_single', [latent_one_hot_encoding.shape, img_emb_single.shape])
                     node_pose = torch.cat([img_emb_single, latent_one_hot_encoding], dim = 1)
                     #print(node_pose.shape)
                     

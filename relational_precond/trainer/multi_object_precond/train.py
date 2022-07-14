@@ -7,21 +7,91 @@ import pprint
 import sys
 import time
 
+from itertools import permutations
+
+sys.path.append(os.getcwd())
+
 import h5py
 import numpy as np
+from relational_precond.trainer.base_train import BaseVAETrainer
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torchvision.transforms import functional as F
-from tqdm import tqdm
+
+from relational_precond.model.GNN_pytorch_geometry import GNNTrainer, GNNModel, MLPModel, GNNModelOptionalEdge, MLPModelOptionalEdge
 
 from relational_precond.dataloader.real_robot_dataloader import AllPairVoxelDataloaderPointCloud3stack
+from relational_precond.model.contact_model import PointConv
+
+from torch.utils.data import SubsetRandomSampler
+from torch_geometric.data import Batch, Data, DataLoader
+from torch_geometric.nn import MessagePassing, global_add_pool
+from torchvision.transforms import functional as F
+from tqdm import tqdm
 from zmq import device
 
-class Trainer:
-    def __init__():
-        pass
-    
+from vae.config.base_config import BaseVAEConfig
+
+
+class Trainer(BaseVAETrainer):
+    def __init__(self):
+        self.max_objects = 8
+
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+            self.dtype = torch.cuda.FloatTensor
+        else:
+            self.device = torch.device("cpu")
+            self.dtype = torch.FloatTensor
+            
+        self.emb_model = PointConv(normal_channel=False)
+
+        self.classif_model = GNNModelOptionalEdge(
+                    128, #self.node_inp_size
+                    128, #input arg z_dim self.edge_inp_size,
+                    relation_output_size = 7, #input arg z_dim
+                    node_output_size = 128, 
+                    predict_edge_output = True,
+                    edge_output_size = 128,
+                    graph_output_emb_size=16, 
+                    node_emb_size=128, 
+                    edge_emb_size=128,
+                    message_output_hidden_layer_size=128,  
+                    message_output_size=128, 
+                    node_output_hidden_layer_size=64,
+                    all_classifier = False,
+                    predict_obj_masks=False,
+                    predict_graph_output=False,
+                    use_edge_embedding = False,
+                    use_edge_input = False, 
+                    max_objects = 8 #args max objects
+                            )
+        self.classif_model_decoder = GNNModelOptionalEdge(
+                    128, #self.node_emb_size, 
+                    128, #self.edge_emb_size,
+                    relation_output_size = 7, #args.z_dim, 
+                    node_output_size = 128, #self.node_inp_size, 
+                    predict_edge_output = True,
+                    edge_output_size = 7,  #edge_inp_size,
+                    graph_output_emb_size=16, 
+                    node_emb_size=128, 
+                    edge_emb_size=128,
+                    message_output_hidden_layer_size=128,  
+                    message_output_size=128, 
+                    node_output_hidden_layer_size=64,
+                    all_classifier = False,
+                    predict_obj_masks=False,
+                    predict_graph_output=False,
+                    use_edge_embedding = False,
+                    use_edge_input = True, 
+                    max_objects = 8
+                )
+        self.bce_loss = nn.BCELoss()
+        self.dynamics_loss = nn.MSELoss()
+        self.opt_emb = optim.Adam(self.emb_model.parameters(), lr=0.0001)
+        self.opt_classif = optim.Adam(self.classif_model.parameters(), lr=1e-4) 
+        self.opt_classif_decoder = optim.Adam(self.classif_model_decoder.parameters(), lr=1e-4) 
+
     # TODO: REVIEW AND EDIT
     def process_raw_batch_data_point_cloud(self, batch_data):
         '''Process raw batch data and collect relevant objects in a dict.'''
@@ -70,11 +140,11 @@ class Trainer:
             'batch_predicted_relations': [],
         }
 
-        args = self.config.args
+        #args = self.config.args
         x_dict = proc_batch_dict
 
         for b, data in enumerate(batch_data):
-            if 'all_object_pairs' in args.train_type:
+            if True:
                 for voxel_idx, voxels in enumerate(data['all_object_pair_voxels']):
                     proc_voxels = voxels #self.process_raw_voxels(voxels)
                     x_dict['batch_voxel_list'].append(proc_voxels)
@@ -140,28 +210,16 @@ class Trainer:
                 #print(data)
                 if data.get('obj_center_list') is not None:
                     x_dict['batch_obj_center_list'].append(torch.Tensor(data['obj_center_list']))
-
-            elif args.train_type == 'unfactored_scene' or \
-                 args.train_type == 'unfactored_scene_resnet18':
-                voxels = data['scene_voxels']
-                proc_voxels = voxels #self.process_raw_voxels(voxels)
-                x_dict['batch_voxel_list'].append(proc_voxels)
-            else:
-                raise ValueError(f"Invalid train type {args.train_type}")
         
-            if args.train_type == 'all_object_pairs_gnn' or \
-               args.train_type == ALL_OBJ_PAIRS_GNN_NEW or \
-               args.train_type == ALL_OBJ_PAIRS_GNN_RAW_INFO or \
-               args.train_type == 'all_object_pairs_g_f_ij_box_stacking_node_label':
-            
-                if data.get('contact_edges') is not None and args.use_contact_edges_only:
-                    x_dict['batch_contact_edge_list'].append(
-                        data['contact_edges'])
-                else:
-                    x_dict['batch_contact_edge_list'] = None
-                if data.get('box_stacking_remove_obj_id') is not None:
-                    x_dict['batch_box_stacking_remove_obj_id_list'].append(
-                        data['box_stacking_remove_obj_id']) 
+
+            if data.get('contact_edges') is not None and args.use_contact_edges_only:
+                x_dict['batch_contact_edge_list'].append(
+                    data['contact_edges'])
+            else:
+                x_dict['batch_contact_edge_list'] = None
+            if data.get('box_stacking_remove_obj_id') is not None:
+                x_dict['batch_box_stacking_remove_obj_id_list'].append(
+                    data['box_stacking_remove_obj_id']) 
 
             x_dict['batch_precond_label_list'].append(data['precond_label'])
             x_dict['batch_scene_path_list'].append(data['scene_path'])
@@ -174,8 +232,7 @@ class Trainer:
         # Now collate the batch data together
         x_tensor_dict = {}
         x_dict = proc_batch_dict
-        device = self.config.get_device()
-        args = self.config.args
+        device = self.device
 
         #print('length', [len(x_dict['batch_voxel_list']), len(x_dict['batch_voxel_list_single'])])
         if len(x_dict['batch_voxel_list']) > 0:
@@ -252,6 +309,28 @@ class Trainer:
                 x_dict['batch_box_stacking_remove_obj_id_list']
 
         return x_tensor_dict
+   
+    # TODO: Remove unused params.
+    def create_graph(self, num_nodes, node_inp_size, node_pose, edge_size, edge_feature, action):
+        nodes = list(range(num_nodes))
+        # Create a completely connected graph
+        edges = list(permutations(nodes, 2))
+        edge_index = torch.LongTensor(np.array(edges).T)
+        x = node_pose#torch.zeros((num_nodes, node_inp_size))#torch.eye(node_inp_size).float()
+        edge_attr = edge_feature #torch.rand(len(edges), edge_size)
+
+        data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, action = action)
+        # Recreate x as target
+        data.y = x
+        return data
+
+    def set_model_device(self, device=torch.device("cpu")):
+        model_list = self.get_model_list()
+        for m in model_list:
+            m.to(device)
+
+    def get_model_list(self):
+        return [self.emb_model, self.classif_model,self.classif_model_decoder]
 
     def run_model(self,
                     x_tensor_dict,
@@ -260,111 +339,131 @@ class Trainer:
                     learning_rate: float=0.0001
                     ):
         
-        if torch.cuda.is_available():
-            device = torch.device("cuda")
-        else:
-            device = torch.device("cpu")
+        device = self.device
+
+        """
+            TODO: Figure this function out more.
+        """
+
+        voxel_data_single = x_tensor_dict['batch_voxel_single']
+        voxel_data_anchor = x_tensor_dict['batch_anchor_voxel']
+        voxel_data_other = x_tensor_dict['batch_other_voxel']
+
+        voxel_data_next_single = x_tensor_dict_next['batch_voxel_single']
+        voxel_data_anchor_next = x_tensor_dict_next['batch_anchor_voxel']
+        voxel_data_other_next = x_tensor_dict_next['batch_other_voxel']
+
+        select_obj_num_range = x_tensor_dict['batch_select_obj_num_range']
+        select_obj_num_range_next = x_tensor_dict_next['batch_select_obj_num_range']
+
+        action = x_tensor_dict_next['batch_action']
+        self.num_nodes = x_tensor_dict['batch_num_objects'].cpu().numpy().astype(int)[0]
+
+        img_emb_anchor = self.emb_model(voxel_data_anchor)
+        img_emb_other = self.emb_model(voxel_data_other)
+
+        img_emb_single = self.emb_model(voxel_data_single)
+        print(f"VOXEL_DATA_SINGLE: {voxel_data_single[0][0][0]}\tIMG_EMB_SINGLE: {img_emb_single[0][0]}")
+
+        img_emb_next_single = self.emb_model(voxel_data_next_single)
+        
+        node_info_extra = torch.stack([img_emb_anchor[0], img_emb_anchor[2], img_emb_anchor[4]])
+
+        img_emb = torch.cat([
+            img_emb_anchor,
+            img_emb_other], dim=1)
+        
+        img_emb = img_emb.to(device)
+        
+
+        img_emb_anchor_next = self.emb_model(voxel_data_anchor_next)
+        img_emb_other_next = self.emb_model(voxel_data_other_next)
+        img_emb_next = torch.cat([
+            img_emb_anchor_next,
+            img_emb_other_next], dim=1)
+
+        img_emb_next = img_emb_next.to(device)
+
 
         
-        img_emb_anchor = self.emb_model(x_tensor_dict_next['batch_anchor_voxel'])
-        img_emb_other = self.emb_model(x_tensor_dict_next['batch_other_voxel'])
-        img_emb_single = self.emb_model(x_tensor_dict['batch_voxel_single'])
-        img_emb_next_single = self.emb_model(x_tensor_dict_next['batch_voxel_single'])
-
-
-        node_pose = torch.cat((one_hot_encoding, x_tensor_dict['batch_all_obj_pair_pos'][0]), 1)
-        node_pose_goal = torch.cat((one_hot_encoding, x_tensor_dict_next['batch_all_obj_pair_pos'][0]), 1)
-
-        #WTF????
-        x_tensor_dict['batch_all_obj_pair_relation'] = x_tensor_dict['batch_all_obj_pair_relation'][0]
-        x_tensor_dict_next['batch_all_obj_pair_relation'] = x_tensor_dict_next['batch_all_obj_pair_relation'][0]#print('edge shape', outs['edge_embed'].shape)
-
-        one_hot_encoding = np.zeros((self.num_nodes, self.max_objects))
-
-        for one_hot_i in range(len(select_obj_num_range)):
-            one_hot_encoding[one_hot_i][(int)(select_obj_num_range[one_hot_i])] = 1
-        one_hot_encoding_tensor = torch.Tensor(one_hot_encoding).to(device)
-        latent_one_hot_encoding = self.classif_model.one_hot_encoding_embed(one_hot_encoding_tensor)
-
-        node_pose = torch.cat([img_emb_single, latent_one_hot_encoding], dim = 1)
-
-        select_obj_num_range_next = select_obj_num_range_next.cpu().numpy()[0]
-
-        if self.set_max:
-            one_hot_encoding_next = np.zeros((self.num_nodes, self.max_objects))
-        else:
-            one_hot_encoding_next = np.zeros((self.num_nodes, self.num_nodes))
         
-        for one_hot_i in range(len(select_obj_num_range_next)):
-            one_hot_encoding_next[one_hot_i][(int)(select_obj_num_range_next[one_hot_i])] = 1
-        one_hot_encoding_next_tensor = torch.Tensor(one_hot_encoding_next).to(device)
-        latent_one_hot_encoding_next = self.classif_model.one_hot_encoding_embed(one_hot_encoding_next_tensor)
-        node_pose_goal = torch.cat([img_emb_next_single, latent_one_hot_encoding_next], dim = 1)
-
+        one_hot_encoding = torch.eye(self.num_nodes).float().to(device)
 
         action_list = []
         for _ in range(self.num_nodes):
             action_list.append(action[0][0][:])
         action_torch = torch.stack(action_list)
 
-        data = self.create_graph(self.num_nodes, self.node_inp_size, node_pose, 0, None, action_torch)
-    
-        data_next = self.create_graph(self.num_nodes, self.node_emb_size, node_pose_goal, 0, None, action_torch)
+        x_tensor_dict['batch_all_obj_pair_relation'] = x_tensor_dict['batch_all_obj_pair_relation'][0]
+        x_tensor_dict_next['batch_all_obj_pair_relation'] = x_tensor_dict_next['batch_all_obj_pair_relation'][0]
+        select_obj_num_range = select_obj_num_range.cpu().numpy()[0]
+
+        one_hot_encoding = np.zeros((self.num_nodes, self.max_objects))
+
+                    
+        for one_hot_i in range(len(select_obj_num_range)):
+            one_hot_encoding[one_hot_i][(int)(select_obj_num_range[one_hot_i])] = 1
+        one_hot_encoding_tensor = torch.Tensor(one_hot_encoding).to(device)
+        latent_one_hot_encoding = self.classif_model.one_hot_encoding_embed(one_hot_encoding_tensor)
+  
+        node_pose = torch.cat([img_emb_single, latent_one_hot_encoding], dim = 1)
+
+
+        select_obj_num_range_next = select_obj_num_range_next.cpu().numpy()[0]
+
+
+        one_hot_encoding_next = np.zeros((self.num_nodes, self.max_objects))
+
+
+        for one_hot_i in range(len(select_obj_num_range_next)):
+            one_hot_encoding_next[one_hot_i][(int)(select_obj_num_range_next[one_hot_i])] = 1
+        one_hot_encoding_next_tensor = torch.Tensor(one_hot_encoding_next).to(device)
+        latent_one_hot_encoding_next = self.classif_model.one_hot_encoding_embed(one_hot_encoding_next_tensor)
+        node_pose_goal = torch.cat([img_emb_next_single, latent_one_hot_encoding_next], dim = 1)
+  
+        data = self.create_graph(self.num_nodes, -1 , node_pose, 0, None, action_torch)
+        data_next = self.create_graph(self.num_nodes,  -1 , node_pose_goal, 0, None, action_torch)
+
 
         batch = Batch.from_data_list([data]).to(device)
-    
-        outs = self.classif_model(batch.x, batch.edge_index, batch.edge_attr, batch.batch, batch.action)
-                    
-                    
-        data_1_decoder = self.create_graph(self.num_nodes, self.node_emb_size, outs['pred'], self.edge_emb_size, outs['pred_edge'], action_torch)
-        
-        batch_decoder = Batch.from_data_list([data_1_decoder]).to(device)
-        
-        outs_decoder = self.classif_model_decoder(batch_decoder.x, batch_decoder.edge_index, batch_decoder.edge_attr, batch_decoder.batch, batch_decoder.action)
-        
-        #outs_decoder = self.classif_model_decoder(outs_embed['pred'], batch.edge_index, outs_embed['pred_edge'], batch.batch, batch.action)
 
+        outs = self.classif_model(batch.x, batch.edge_index, batch.edge_attr, batch.batch, batch.action)
+        data_1_decoder = self.create_graph(self.num_nodes, -1, outs['pred'], -1, outs['pred_edge'], action_torch)
+        batch_decoder = Batch.from_data_list([data_1_decoder]).to(device)
+        outs_decoder = self.classif_model_decoder(batch_decoder.x, batch_decoder.edge_index, batch_decoder.edge_attr, batch_decoder.batch, batch_decoder.action)
+                        
         batch2 = Batch.from_data_list([data_next]).to(device)
-        #print(batch)
+
         outs_2 = self.classif_model(batch2.x, batch2.edge_index, batch2.edge_attr, batch2.batch, batch2.action)
-        #print(outs['pred'].size())
-        
-        
-        data_2_decoder = self.create_graph(self.num_nodes, self.node_emb_size, outs_2['pred'], self.edge_emb_size, outs_2['pred_edge'], action_torch)
+        data_2_decoder = self.create_graph(self.num_nodes, -1, outs_2['pred'], -1, outs_2['pred_edge'], action_torch)
         batch_decoder_2 = Batch.from_data_list([data_2_decoder]).to(device)
         outs_decoder_2 = self.classif_model_decoder(batch_decoder_2.x, batch_decoder_2.edge_index, batch_decoder_2.edge_attr, batch_decoder_2.batch, batch_decoder_2.action)
-        
-        
-        data_2_decoder_edge = self.create_graph(self.num_nodes, self.node_emb_size, outs['pred_embedding'], self.edge_emb_size, outs['pred_edge_embed'], action_torch)
+                        
+        data_2_decoder_edge = self.create_graph(self.num_nodes, -1, outs['pred_embedding'], -1, outs['pred_edge_embed'], action_torch)
         batch_decoder_2_edge = Batch.from_data_list([data_2_decoder_edge]).to(device)
         outs_decoder_2_edge = self.classif_model_decoder(batch_decoder_2_edge.x, batch_decoder_2_edge.edge_index, batch_decoder_2_edge.edge_attr, batch_decoder_2_edge.batch, batch_decoder_2_edge.action)
-        #outs_edge = self.classif_model.forward_decoder(outs['pred_embedding'], batch.edge_index, outs['pred_edge_embed'], batch.batch, batch.action)
-        
+                        
         total_loss = 0
 
+
         total_loss += self.bce_loss(outs_decoder['pred_sigmoid'][:], x_tensor_dict['batch_all_obj_pair_relation'][:, :])
-        total_loss += self.bce_loss(outs_decoder_2['pred_sigmoid'][:], x_tensor_dict_next['batch_all_obj_pair_relation'][:, :])
-        
-        # print('current', [outs_decoder['pred_sigmoid'][:], x_tensor_dict['batch_all_obj_pair_relation']])
-        # print('pred', [outs_decoder_2['pred_sigmoid'][:], x_tensor_dict_next['batch_all_obj_pair_relation']])
-        
+        total_loss += self.bce_loss(outs_decoder_2['pred_sigmoid'][:], x_tensor_dict_next['batch_all_obj_pair_relation'][:, :])                        
         total_loss += self.dynamics_loss(outs['pred_embedding'], outs_2['current_embed'])
         total_loss += self.dynamics_loss(outs['pred_edge_embed'], outs_2['edge_embed'])
         total_loss += self.bce_loss(outs_decoder_2_edge['pred_sigmoid'][:], x_tensor_dict_next['batch_all_obj_pair_relation'][:, :])
-
-        print(total_loss)   
-
+        print(f"Total loss:\t{total_loss}")
+        
         self.opt_emb.zero_grad()
         self.opt_classif.zero_grad()
         self.opt_classif_decoder.zero_grad()
-      
+        
         total_loss.backward()
-        if args.emb_lr >= 1e-5:
+        if learning_rate >= 1e-5:
             self.opt_emb.step()
+
         self.opt_classif.step()
         self.opt_classif_decoder.step()
 
-        
 
     def train(
         self,
@@ -373,12 +472,15 @@ class Trainer:
         dataloader :AllPairVoxelDataloaderPointCloud3stack
         ):
 
+        self.set_model_device(self.device)
+
         num_batches = dataloader.number_of_scene_data() // batch_size
         if dataloader.number_of_scene_data() % batch_size != 0:
             num_batches += 1
 
         for e_idx in range(num_epochs):
             dataloader.reset_scene_batch_sampler()
+            data_idx = 0
 
             for _ in range(num_batches):
                 data_batch = []
@@ -403,16 +505,43 @@ class Trainer:
                     x_tensor_dict_next,
                     batch_size
                     )
+                print(f"Epoch:\t{e_idx}/{num_epochs}")
 
 
 def main(args):
-    
-    dtype = torch.FloatTensor
-    if torch.cuda.is_available():
-        dtype = torch.cuda.FloatTensor
+    args.result_dir = args.train_dir
+    args.test_dir = args.train_dir
 
-    trainer = Trainer()
+    t = Trainer()
+    config = BaseVAEConfig(args, dtype=t.dtype)
 
+    # TODO: Review and edit
+    dataloader = AllPairVoxelDataloaderPointCloud3stack(
+                        config,
+                        use_multiple_train_dataset = False,
+                        use_multiple_test_dataset = False, 
+                        pick_place = False, 
+                        pushing = True,
+                        stacking = False, 
+                        set_max = True, 
+                        max_objects = 8,
+                        voxel_datatype_to_use=0,
+                        load_all_object_pair_voxels=True,
+                        test_end_relations = False,
+                        real_data = False, 
+                        start_id = 0, 
+                        max_size = 2, 
+                        start_test_id = 0, 
+                        test_max_size = 2,
+                        updated_behavior_params = True,
+                        pointconv_baselines = True,
+                        save_data_path = "",
+                        evaluate_end_relations = False,
+                        using_multi_step_statistics = False,
+                        total_multi_steps = 2
+                        )
+
+    t.train( 1000, 1, dataloader)
     
 
 if __name__ == '__main__':
