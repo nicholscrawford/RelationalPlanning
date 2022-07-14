@@ -9,7 +9,6 @@ sys.path.append(os.getcwd())
 from relational_precond.model.GNN_pytorch_geometry import GNNTrainer, GNNModel, MLPModel, GNNModelOptionalEdge, MLPModelOptionalEdge
 from relational_precond.trainer.multi_object_precond.trainer import Trainer
 from relational_precond.dataloader.real_robot_dataloader import AllPairVoxelDataloaderPointCloud3stack
-
 from vae.config.base_config import BaseVAEConfig
 
 
@@ -46,7 +45,7 @@ def main(args):
                         total_multi_steps = 2
                         )
 
-    t.train( 1000, 1, dataloader) #Batch size can currently only function with size one.
+    t.test(dataloader)
     
 
 if __name__ == '__main__':
@@ -55,8 +54,8 @@ if __name__ == '__main__':
         description='Train relational predictor model.'
         )
 
-    parser.add_argument('--train_dir', required=True, action='append',
-                        help='Path to training data.')
+    parser.add_argument('--test_dir', required=True, action='append',
+                        help='Path to testing data.')
 
     args = parser.parse_args()
     main(args)
